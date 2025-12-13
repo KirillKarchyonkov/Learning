@@ -1,0 +1,234 @@
+{
+  "courses": [
+    {
+      "id": 1765628768124,
+      "title": "Практика проекты",
+      "description": "Практические уроки",
+      "sections": [
+        {
+          "id": 1765629916835,
+          "title": "Проект «Клон YouTube»",
+          "tabs": [
+            {
+              "id": 1765630034954,
+              "title": "День 1",
+              "content": "",
+              "videoUrl": "https://www.youtube.com/watch?v=pFqKuOSqxdc&list=PLXkonRjGXZwxep6IOHdAGL4YGf5jdFgov",
+              "type": "mixed",
+              "lastModified": "2025-12-13T12:48:28.114Z"
+            },
+            {
+              "id": 1765630285814,
+              "title": "День 2",
+              "content": "",
+              "videoUrl": "https://www.youtube.com/watch?v=_dyCGv30P70&list=PLXkonRjGXZwxep6IOHdAGL4YGf5jdFgov&index=2",
+              "type": "mixed",
+              "lastModified": "2025-12-13T12:55:10.908Z"
+            },
+            {
+              "id": 1765630286332,
+              "title": "День 3",
+              "content": "",
+              "videoUrl": "https://www.youtube.com/watch?v=JvbktCZfoOY&list=PLXkonRjGXZwxep6IOHdAGL4YGf5jdFgov&index=3",
+              "type": "mixed",
+              "lastModified": "2025-12-13T12:53:37.777Z"
+            },
+            {
+              "id": 1765630286819,
+              "title": "День 4",
+              "content": "",
+              "videoUrl": "https://www.youtube.com/watch?v=lSBXCsqQNns&list=PLXkonRjGXZwxep6IOHdAGL4YGf5jdFgov&index=4&pp=iAQB",
+              "type": "mixed",
+              "lastModified": "2025-12-13T12:53:47.574Z"
+            },
+            {
+              "id": 1765630287399,
+              "title": "День 5",
+              "content": "",
+              "videoUrl": "https://www.youtube.com/watch?v=voWocQ-bkdY&list=PLXkonRjGXZwxep6IOHdAGL4YGf5jdFgov&index=5&pp=iAQB",
+              "type": "mixed",
+              "lastModified": "2025-12-13T12:53:58.925Z"
+            },
+            {
+              "id": 1765630288149,
+              "title": "День 6",
+              "content": "",
+              "videoUrl": "https://www.youtube.com/watch?v=wgY_LZShziY&list=PLXkonRjGXZwxep6IOHdAGL4YGf5jdFgov&index=6&pp=iAQB",
+              "type": "mixed",
+              "lastModified": "2025-12-13T12:54:07.244Z"
+            },
+            {
+              "id": 1765630447725,
+              "title": "День 7",
+              "content": "",
+              "videoUrl": "https://www.youtube.com/watch?v=vw1t5IRzYxc&list=PLXkonRjGXZwxep6IOHdAGL4YGf5jdFgov&index=7&pp=iAQB0gcJCSkKAYcqIYzv",
+              "type": "mixed",
+              "lastModified": "2025-12-13T12:54:26.280Z"
+            }
+          ]
+        },
+        {
+          "id": 1765630724453,
+          "title": "Проект «Клон VK»",
+          "tabs": [
+            {
+              "id": 1765630860416,
+              "title": "День 1",
+              "content": "",
+              "videoUrl": "https://www.youtube.com/watch?v=VtHqe99PNtU&list=PLXkonRjGXZwxLu7s4XHjxcXPtHSC4dhon&index=1&pp=iAQB0gcJCSkKAYcqIYzv",
+              "type": "mixed",
+              "lastModified": "2025-12-13T13:02:42.942Z"
+            },
+            {
+              "id": 1765630864846,
+              "title": "День 2",
+              "content": "",
+              "videoUrl": "https://www.youtube.com/watch?v=rQjU6dtvyK4&list=PLXkonRjGXZwxLu7s4XHjxcXPtHSC4dhon&index=2&pp=iAQB",
+              "type": "mixed",
+              "lastModified": "2025-12-13T13:04:26.795Z"
+            },
+            {
+              "id": 1765630865424,
+              "title": "День 3",
+              "content": "",
+              "videoUrl": "https://www.youtube.com/watch?v=YSLfg8bjIdA&list=PLXkonRjGXZwxLu7s4XHjxcXPtHSC4dhon&index=3&pp=iAQB0gcJCSkKAYcqIYzv",
+              "type": "mixed",
+              "lastModified": "2025-12-13T13:03:17.770Z"
+            },
+            {
+              "id": 1765630866545,
+              "title": "День 4",
+              "content": "",
+              "videoUrl": "https://www.youtube.com/watch?v=NRoYPF7wzAM&list=PLXkonRjGXZwxLu7s4XHjxcXPtHSC4dhon&index=4&pp=iAQB",
+              "type": "mixed",
+              "lastModified": "2025-12-13T13:03:29.690Z"
+            },
+            {
+              "id": 1765630866880,
+              "title": "День 5",
+              "content": "",
+              "videoUrl": "https://www.youtube.com/watch?v=lu9m6zP-98M&list=PLXkonRjGXZwxLu7s4XHjxcXPtHSC4dhon&index=5&pp=iAQB",
+              "type": "mixed",
+              "lastModified": "2025-12-13T13:03:43.888Z"
+            },
+            {
+              "id": 1765630867188,
+              "title": "День 6",
+              "content": "",
+              "videoUrl": "https://www.youtube.com/watch?v=0EXdxRMfDqQ&list=PLXkonRjGXZwxLu7s4XHjxcXPtHSC4dhon&index=6&pp=iAQB",
+              "type": "mixed",
+              "lastModified": "2025-12-13T13:03:51.803Z"
+            },
+            {
+              "id": 1765630867683,
+              "title": "День 7",
+              "content": "",
+              "videoUrl": "https://www.youtube.com/watch?v=iSCJv2AMt-Y&list=PLXkonRjGXZwxLu7s4XHjxcXPtHSC4dhon&index=7&pp=iAQB",
+              "type": "mixed",
+              "lastModified": "2025-12-13T13:04:01.580Z"
+            }
+          ]
+        },
+        {
+          "id": 1765632474215,
+          "title": "Проект «Клон RUTUBE»",
+          "tabs": [
+            {
+              "id": 1765632495368,
+              "title": "1. RUTUBE и ТОЧКА",
+              "content": "00:00:00 - Начало\n00:01:16 - Какой стэк?\n00:01:33 - Практика данного проекта\n00:02:58 - Смотрим Ютуб\n00:03:30 - Чем мне не нравится RUTUBE?\n00:05:20 - ДЕМО\n00:10:32 - Создание back-end\n00:11:20 - Базовая настройка проекта + установка зависимостей\n00:13:47 - Настройка сервера\n00:16:00 - Подключение PostgreSQL\n00:20:50 - Генерируем сущности\n00:23:44 - Описываем Entities + связи\n00:37:31 - Авторизация (стратегия, декоратор )\n00:41:59 - Что такое DTO? AuthDTO\n00:43:57 - Сервис для авторизации\n00:51:46 - Контроллер для авторизации\n00:55:44 - Сервис для пользователя \n01:06:27 - Контроллер для пользователя \n01:15:00 - Сервис для видео\n01:24:23 - Контроллер для видео\n01:29:38 - Сервис и контроллер для комментариев\n01:30:00 - Загрузка файлов\n01:36:00 - Создание и настройка фронт проекта\n01:43:50 - Настройка Tailwind и конфига\n01:50:00 - Глобальные стили, шприфты\n01:51:00 - Утилиты\n01:55:00 - Описываем интерфейсы\n01:59:00 - Auth service\n02:04:00 - User service\n02:06:00 - Video service\n02:07:00 - Layout\n02:13:00 - Структура главной страницы\n02:16:00 - document.tsx\n02:17:00 - Sidebar + menu\n02:29:30 - Header\n02:35:00 - Форма авторизации\n02:39:40 - UI компоненты для формы\n02:47:20 - Логин и регистрация createAsyncThunk\n02:56:19 - Настройка Redux Toolkit\n03:02:00 - Кастомные хуки для Redux\n03:02:46 - Добавляем action в форму авторизации\n03:04:00 - Защищенные роуты\n03:10:00 - Настройка RTK Query\n03:14:30 - Добавляем токен в хедер запроса\n03:16:00 - Получение профиля\n03:22:00 - Описываем все сервисы в RTK Query\n03:28:00 - Меню юзера в хедере\n03:34:50 - Поиск\n03:39:52 - VideoItem\n03:51:25 - SSG + Главная страница\n03:58:00 - Страница канала\n04:07:50 - Кнопка \"подписаться\"\n04:12:00 - Вывод списка подписок\n04:14:20 - Страницы тренды\n04:16:10 - Страница мои подписки\n04:17:17 - Страница видео\n04:19:40 - Функционал плеера\n04:32:00 - Комментарии к видео\n04:37:22 - Детали видео (описание,лайки, просмотры)\n04:40:00 - Обновление просмотров видео\n04:41:20 - Творческая студия\n04:43:53 - Загрузка видео с прогресс баром\n04:48:30 - Загрузка файлов функционал\n04:57:00 - Продолжаем делать форму для загрузки видео\n05:05:00 - Редактирование видео\n05:09:40 - Я счастлив! \n05:10:40 - Почему я кайфую от программирования?",
+              "videoUrl": "https://vkvideo.ru/playlist/-197942505_2/video-197942505_456239036?linked=1",
+              "type": "mixed",
+              "lastModified": "2025-12-13T13:29:26.472Z"
+            }
+          ]
+        }
+      ],
+      "createdAt": "2025-12-13T12:26:08.124Z",
+      "updatedAt": "2025-12-13T13:29:26.472Z"
+    },
+    {
+      "id": 1765631226079,
+      "title": "Экосистема  React",
+      "description": "Здесь курсы по экосистеме React от разных авторов",
+      "sections": [
+        {
+          "id": 1765631501459,
+          "title": "React",
+          "tabs": [
+            {
+              "id": 1765631686200,
+              "title": "1. Полный курс по React за 2 часа [RED Group]",
+              "content": "00:00:00 - Начало  \n00:01:52 - NPM vs YARN\n00:02:37 - Vite vs Webpack\n00:03:30 - Создание React приложения\n00:04:33 - Структура проекта\n00:07:44 - Почему функциональные компоненты\n00:11:30 - Особенности JSX\n00:16:24 - Проблемы с SEO и почему выбирают Next.js?\n00:17:52 - Первый компонент\n00:20:00 - Варианты как можно писать стили в React\n00:22:15 - Что такое React?\n00:24:08 - Как подключить изображения в React?\n00:28:22 - Вывод элементов меню с помощью map в JSX\n00:32:24 - Условия внутри JSX - тернарный оператор\n00:33:15 - Декомпозиция и пропсы\n00:35:30 - Фильтрация\n00:36:10 - useMemo - оптимизация и кэширование\n00:39:02 - Хуки в React - useState и управляемый Input\n00:46:30 - Форма создания поста\n00:52:04 - Оптимизация большого количества полей\n00:55:05 - useEffect\n00:57:00 - Выполнение запросов с помощью fetch\n00:58:04 - Fetch vs Axios\n01:00:37 - Почему важно писать сервисы?\n01:02:15 - Routing - React Router Dom\n01:04:50 - Страница одной машины и получение данных\n01:07:48 - Как писать ссылки без перезагрузки?\n01:09:32 - Как вручную перенаправлять пользователя с помощью history?\n01:11:03 - useRef - где применять?\n01:14:23 - useCallback - оптимизация\n01:15:49 - React.memo - повышение производительности\n01:18:05 - Авторизация и контекст useContext\n01:24:00 - HOC - Компонент высшего порядка\n01:27:37 - Почему использую react-hook-form?\n01:33:54 - Почему React Query это круто?\n01:38:30 - useMutation - мутация\n01:44:28 - Рефакторинг на кастомные хуки\n01:49:06 - Добавление TypeScript в проект\n02:01:34 - Какой структуры папок придерживаться\n02:03:45 - Какой план обучения дальше?",
+              "videoUrl": "https://www.youtube.com/watch?v=k35Jt-VnzO8&list=PLXkonRjGXZwxfa5YGgkENee7sQhc-Mdhd",
+              "type": "mixed",
+              "lastModified": "2025-12-13T13:24:10.467Z"
+            }
+          ]
+        }
+      ],
+      "createdAt": "2025-12-13T13:07:06.079Z",
+      "updatedAt": "2025-12-13T13:24:10.467Z"
+    },
+    {
+      "id": 1765636956978,
+      "title": "Новый курс 3",
+      "description": "Описание курса",
+      "sections": [],
+      "createdAt": "2025-12-13T14:42:36.978Z",
+      "updatedAt": "2025-12-13T14:42:36.978Z"
+    },
+    {
+      "id": 1765638631451,
+      "title": "Новый курс 4",
+      "description": "Описание курса",
+      "sections": [],
+      "createdAt": "2025-12-13T15:10:31.451Z",
+      "updatedAt": "2025-12-13T15:10:31.452Z",
+      "version": 1
+    },
+    {
+      "id": 1,
+      "title": "React для начинающих",
+      "description": "Изучите основы React с нуля",
+      "sections": [
+        {
+          "id": 11,
+          "title": "Введение в React",
+          "tabs": [
+            {
+              "id": 111,
+              "title": "Что такое React",
+              "content": "React - это JavaScript-библиотека для создания пользовательских интерфейсов.",
+              "videoUrl": "https://www.youtube.com/embed/Ke90Tje7VS0",
+              "type": "mixed"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1765638688267,
+      "title": "Новый курс 5",
+      "description": "Описание курса",
+      "sections": [],
+      "createdAt": "2025-12-13T15:11:28.267Z",
+      "updatedAt": "2025-12-13T15:11:28.267Z",
+      "version": 1
+    },
+    {
+      "id": 1765640130893,
+      "title": "Новый курс 7",
+      "description": "Описание курса",
+      "sections": [],
+      "createdAt": "2025-12-13T15:35:30.893Z",
+      "updatedAt": "2025-12-13T15:35:30.893Z",
+      "version": 1
+    }
+  ],
+  "metadata": {
+    "lastModified": "2025-12-13T17:08:20.007Z",
+    "totalCourses": 7,
+    "commitMessage": "Обновление курсов"
+  }
+}
