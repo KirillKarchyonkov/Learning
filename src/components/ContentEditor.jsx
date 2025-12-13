@@ -1,32 +1,72 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import VideoEmbed from './VideoEmbed';
 
 const ContentEditor = ({ tab, onUpdateTab }) => {
   const [content, setContent] = useState(tab.content || '');
   const [videoUrl, setVideoUrl] = useState(tab.videoUrl || '');
   const [isEditing, setIsEditing] = useState(true);
+  const [autoSaveTimer, setAutoSaveTimer] = useState(null);
+  const [lastSaved, setLastSaved] = useState(null);
+  const hasUnsavedChanges = useRef(false);
 
   useEffect(() => {
     setContent(tab.content || '');
     setVideoUrl(tab.videoUrl || '');
+    hasUnsavedChanges.current = false;
   }, [tab.id]);
 
-  const handleSave = () => {
+  // Автосохранение при бездействии
+  useEffect(() => {
+    if (autoSaveTimer) {
+      clearTimeout(autoSaveTimer);
+    }
+    
+    if (hasUnsavedChanges.current) {
+      const timer = setTimeout(() => {
+        handleAutoSave();
+      }, 2000); // Сохранять через 2 секунды бездействия
+      
+      setAutoSaveTimer(timer);
+    }
+    
+    return () => {
+      if (autoSaveTimer) {
+        clearTimeout(autoSaveTimer);
+      }
+    };
+  }, [content, videoUrl]);
+
+  const handleAutoSave = () => {
     onUpdateTab({
       ...tab,
       content,
-      videoUrl
+      videoUrl,
+      lastModified: new Date().toISOString()
     });
+    setLastSaved(new Date());
+    hasUnsavedChanges.current = false;
+  };
+
+  const handleContentChange = (newContent) => {
+    setContent(newContent);
+    hasUnsavedChanges.current = true;
+  };
+
+  const handleVideoUrlChange = (newUrl) => {
+    setVideoUrl(newUrl);
+    hasUnsavedChanges.current = true;
+  };
+
+  const handleSave = () => {
+    handleAutoSave();
     setIsEditing(false);
   };
 
   const extractVideoId = (url) => {
-    // Для YouTube
     if (url.includes('youtube.com') || url.includes('youtu.be')) {
       const match = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/);
       return match ? match[1] : null;
     }
-    // Для VK
     if (url.includes('vk.com')) {
       const match = url.match(/video-?\d+_\d+/);
       return match ? match[0] : null;
@@ -37,7 +77,7 @@ const ContentEditor = ({ tab, onUpdateTab }) => {
   const handlePaste = (e) => {
     const pastedText = e.clipboardData.getData('text');
     if (pastedText.includes('youtube') || pastedText.includes('youtu.be') || pastedText.includes('vk.com')) {
-      setVideoUrl(pastedText);
+      handleVideoUrlChange(pastedText);
       e.preventDefault();
     }
   };
@@ -45,8 +85,18 @@ const ContentEditor = ({ tab, onUpdateTab }) => {
   return (
     <div className="content-editor">
       <div className="content-editor-header">
-        <h4>{tab.title}</h4>
+        <div className="editor-title">
+          <h4>{tab.title}</h4>
+          {lastSaved && (
+            <span className="last-saved">
+              Сохранено: {lastSaved.toLocaleTimeString()}
+            </span>
+          )}
+        </div>
         <div className="editor-actions">
+          {hasUnsavedChanges.current && (
+            <span className="unsaved-changes">Есть несохраненные изменения</span>
+          )}
           <button 
             onClick={() => setIsEditing(!isEditing)}
             className="toggle-edit-btn"
@@ -68,7 +118,7 @@ const ContentEditor = ({ tab, onUpdateTab }) => {
             <input
               type="text"
               value={videoUrl}
-              onChange={(e) => setVideoUrl(e.target.value)}
+              onChange={(e) => handleVideoUrlChange(e.target.value)}
               onPaste={handlePaste}
               placeholder="Вставьте ссылку на видео"
             />
@@ -83,10 +133,13 @@ const ContentEditor = ({ tab, onUpdateTab }) => {
             <label>Текстовое содержание:</label>
             <textarea
               value={content}
-              onChange={(e) => setContent(e.target.value)}
+              onChange={(e) => handleContentChange(e.target.value)}
               placeholder="Введите текст урока..."
               rows={15}
             />
+            <div className="formatting-hint">
+              <small>Поддерживается HTML-разметка. Для новой строки используйте &lt;br&gt; или перенос строки.</small>
+            </div>
           </div>
         </div>
       ) : (
@@ -104,6 +157,12 @@ const ContentEditor = ({ tab, onUpdateTab }) => {
                   __html: content.replace(/\n/g, '<br>') 
                 }} 
               />
+            </div>
+          )}
+          
+          {!content && !videoUrl && (
+            <div className="empty-content">
+              <p>Пока здесь ничего нет. Нажмите "Редактировать", чтобы добавить контент.</p>
             </div>
           )}
         </div>
