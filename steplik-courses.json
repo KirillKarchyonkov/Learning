@@ -1,26 +1,6 @@
 {
   "courses": [
     {
-      "id": 1,
-      "title": "React для начинающих",
-      "description": "Изучите основы React с нуля",
-      "sections": [
-        {
-          "id": 11,
-          "title": "Введение в React",
-          "tabs": [
-            {
-              "id": 111,
-              "title": "Что такое React",
-              "content": "React - это JavaScript-библиотека для создания пользовательских интерфейсов.",
-              "videoUrl": "https://www.youtube.com/embed/Ke90Tje7VS0",
-              "type": "mixed"
-            }
-          ]
-        }
-      ]
-    },
-    {
       "id": 1765628768124,
       "title": "Практика проекты",
       "description": "Практические уроки",
@@ -199,15 +179,6 @@
       "updatedAt": "2025-12-13T14:42:36.978Z"
     },
     {
-      "id": 1765638688267,
-      "title": "Новый курс 5",
-      "description": "Описание курса",
-      "sections": [],
-      "createdAt": "2025-12-13T15:11:28.267Z",
-      "updatedAt": "2025-12-13T15:11:28.267Z",
-      "version": 1
-    },
-    {
       "id": 1765638631451,
       "title": "Новый курс 4",
       "description": "Описание курса",
@@ -217,27 +188,47 @@
       "version": 1
     },
     {
-      "id": 1765645779926,
-      "title": "Новый курс 7",
+      "id": 1,
+      "title": "React для начинающих",
+      "description": "Изучите основы React с нуля",
+      "sections": [
+        {
+          "id": 11,
+          "title": "Введение в React",
+          "tabs": [
+            {
+              "id": 111,
+              "title": "Что такое React",
+              "content": "React - это JavaScript-библиотека для создания пользовательских интерфейсов.",
+              "videoUrl": "https://www.youtube.com/embed/Ke90Tje7VS0",
+              "type": "mixed"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1765638688267,
+      "title": "Новый курс 5",
       "description": "Описание курса",
       "sections": [],
-      "createdAt": "2025-12-13T17:09:39.926Z",
-      "updatedAt": "2025-12-13T17:09:39.926Z",
+      "createdAt": "2025-12-13T15:11:28.267Z",
+      "updatedAt": "2025-12-13T15:11:28.267Z",
       "version": 1
     },
     {
-      "id": 1765645791493,
-      "title": "Новый курс 8",
+      "id": 1765640130893,
+      "title": "Новый курс 7",
       "description": "Описание курса",
       "sections": [],
-      "createdAt": "2025-12-13T17:09:51.493Z",
-      "updatedAt": "2025-12-13T17:09:51.493Z",
+      "createdAt": "2025-12-13T15:35:30.893Z",
+      "updatedAt": "2025-12-13T15:35:30.893Z",
       "version": 1
     }
   ],
   "metadata": {
-    "lastModified": "2025-12-13T17:11:02.067Z",
-    "totalCourses": 8,
-    "commitMessage": "Добавлено 5 курсов"
+    "lastModified": "2025-12-13T17:11:56.070Z",
+    "totalCourses": 7,
+    "commitMessage": "Merge with remote changes"
   }
 }
