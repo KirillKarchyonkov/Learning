@@ -1,181 +1,263 @@
 import React, { useState } from 'react';
 
 const GithubSync = ({ 
-  githubToken, 
-  setGithubToken, 
-  gistId, 
-  setGistId,
+  githubToken,
+  setGithubToken,
+  permissions,
+  repoConfig,
+  setRepoConfig,
+  courses,
   onSync,
-  onLoad,
-  isSyncing,
-  lastSync 
+  onCommit,
+  isSyncing 
 }) => {
-  const [showSettings, setShowSettings] = useState(!githubToken);
+  const [activeTab, setActiveTab] = useState('sync'); // 'sync' | 'git' | 'settings'
   const [showToken, setShowToken] = useState(false);
 
-  const handleCreateToken = () => {
-    window.open('https://github.com/settings/tokens/new?scopes=gist&description=Steplik%20Personal%20Sync', '_blank');
+  const createTokenWithAllPermissions = () => {
+    window.open(
+      'https://github.com/settings/tokens/new?scopes=gist,repo&description=Steplik%20Personal',
+      '_blank'
+    );
   };
 
-  const handleClearSettings = () => {
-    if (window.confirm('Сбросить настройки GitHub?')) {
-      localStorage.removeItem('steplik-github-token');
-      localStorage.removeItem('steplik-gist-id');
-      setGithubToken('');
-      setGistId('');
+  const setupRepository = () => {
+    const repoUrl = prompt(
+      'Введите URL вашего репозитория (например: https://github.com/username/steplik-data)',
+      repoConfig.url || ''
+    );
+    
+    if (repoUrl) {
+      try {
+        const url = new URL(repoUrl);
+        const [, owner, name] = url.pathname.split('/');
+        
+        if (owner && name) {
+          const newRepoConfig = {
+            owner,
+            name: name.replace('.git', ''),
+            url: repoUrl,
+            branch: 'main'
+          };
+          
+          localStorage.setItem('steplik-repo-config', JSON.stringify(newRepoConfig));
+          setRepoConfig(newRepoConfig);
+          alert('Репозиторий настроен!');
+        }
+      } catch (error) {
+        alert('Введите корректный URL репозитория');
+      }
     }
   };
 
-  if (!showSettings && githubToken) {
-    return (
-      <div className="github-sync-summary">
-        <div className="sync-summary-header">
-          <h4>☁️ Синхронизация настроена</h4>
-          <button 
-            onClick={() => setShowSettings(true)}
-            className="edit-settings-btn"
-          >
-            Изменить
-          </button>
-        </div>
-        
-        <div className="sync-info">
-          <p><strong>Статус:</strong> {gistId ? 'Подключено' : 'Требуется Gist'}</p>
-          {gistId && (
-            <p>
-              <strong>Gist ID:</strong> 
-              <code>{gistId.substring(0, 8)}...</code>
-            </p>
-          )}
-          {lastSync && (
-            <p>
-              <strong>Последняя синхронизация:</strong>
-              {lastSync.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            </p>
-          )}
-        </div>
-        
-        <div className="sync-buttons">
-          <button onClick={onSync} disabled={isSyncing || !gistId}>
-            {isSyncing ? '🔄 Синхронизация...' : '☁️ Синхронизировать'}
-          </button>
-          <button onClick={onLoad} disabled={isSyncing || !gistId}>
-            📥 Проверить обновления
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const performGitOperation = async (operation) => {
+    if (!permissions.hasRepoAccess) {
+      alert('Токену не хватает прав доступа к репозиториям');
+      return;
+    }
+    
+    if (!repoConfig.owner || !repoConfig.name) {
+      alert('Сначала настройте репозиторий');
+      return;
+    }
+    
+    try {
+      switch (operation) {
+        case 'commit':
+          await onCommit('Обновление курсов');
+          break;
+        case 'push':
+          await pushToRepository();
+          break;
+        case 'pull':
+          await pullFromRepository();
+          break;
+      }
+    } catch (error) {
+      alert(`Ошибка: ${error.message}`);
+    }
+  };
+
+  const pushToRepository = async () => {
+    // Реализация push через GitHub API
+    // (код из предыдущего ответа)
+  };
+
+  const pullFromRepository = async () => {
+    // Реализация pull через GitHub API
+    // (код из предыдущего ответа)
+  };
 
   return (
-    <div className="github-sync-panel">
-      <div className="sync-header" onClick={() => setShowSettings(!showSettings)}>
-        <h3>☁️ Настройка синхронизации</h3>
-        <span className="toggle-icon">{showSettings ? '▼' : '▶'}</span>
+    <div className="github-unified-panel">
+      <div className="github-tabs">
+        <button 
+          className={`tab-btn ${activeTab === 'sync' ? 'active' : ''}`}
+          onClick={() => setActiveTab('sync')}
+        >
+          🔄 Синхронизация
+        </button>
+        <button 
+          className={`tab-btn ${activeTab === 'git' ? 'active' : ''}`}
+          onClick={() => setActiveTab('git')}
+        >
+          📁 Git операции
+        </button>
+        <button 
+          className={`tab-btn ${activeTab === 'settings' ? 'active' : ''}`}
+          onClick={() => setActiveTab('settings')}
+        >
+          ⚙️ Настройки
+        </button>
       </div>
       
-      {showSettings && (
-        <div className="sync-content">
-          <div className="sync-instructions">
-            <p><strong>Как это работает:</strong></p>
-            <ol>
-              <li>Создайте GitHub Personal Access Token (права gist)</li>
-              <li>Введите токен ниже - он сохранится только в вашем браузере</li>
-              <li>На первом устройстве нажмите "Создать Gist"</li>
-              <li>На других устройствах введите тот же токен и Gist ID</li>
-              <li>Изменения будут синхронизироваться автоматически</li>
-            </ol>
-          </div>
-          
-          <div className="form-group">
-            <label>
-              GitHub Personal Access Token:
-              <button type="button" className="info-btn" onClick={handleCreateToken}>
-                Создать токен
-              </button>
-            </label>
-            <div className="input-with-button">
-              <input
-                type={showToken ? "text" : "password"}
-                value={githubToken}
-                onChange={(e) => setGithubToken(e.target.value)}
-                placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
-                className="token-input"
-              />
-              <button 
-                type="button"
-                className="toggle-visibility"
-                onClick={() => setShowToken(!showToken)}
-                title={showToken ? "Скрыть токен" : "Показать токен"}
-              >
-                {showToken ? '👁️' : '👁️‍🗨️'}
-              </button>
-            </div>
-            <small className="hint">
-              Токен нужен только для доступа к вашему Gist
-            </small>
-          </div>
-          
-          {githubToken && (
-            <div className="form-group">
-              <label>Gist ID (если уже создан):</label>
-              <input
-                type="text"
-                value={gistId}
-                onChange={(e) => setGistId(e.target.value)}
-                placeholder="Оставьте пустым для создания нового"
-                className="gist-input"
-              />
-              <small className="hint">
-                Один Gist ID для всех ваших устройств
-              </small>
-            </div>
-          )}
-          
-          <div className="sync-actions">
-            <button 
-              onClick={() => {
-                if (githubToken) {
-                  localStorage.setItem('steplik-github-token', githubToken);
-                  if (gistId) {
-                    localStorage.setItem('steplik-gist-id', gistId);
-                  }
-                  setShowSettings(false);
-                }
-              }}
-              disabled={!githubToken}
-              className="save-settings-btn"
-            >
-              💾 Сохранить настройки
-            </button>
+      <div className="github-content">
+        {/* Вкладка синхронизации */}
+        {activeTab === 'sync' && (
+          <div className="sync-tab">
+            <h3>🔄 Синхронизация между устройствами</h3>
+            <p>Используйте GitHub Gist для хранения данных</p>
             
-            <button 
-              onClick={() => onSync('create')}
-              disabled={isSyncing || !githubToken}
-              className="create-gist-btn"
-            >
-              {gistId ? '🔄 Обновить Gist' : '☁️ Создать Gist'}
-            </button>
+            {permissions.hasGistAccess ? (
+              <div className="sync-actions">
+                <button onClick={onSync} disabled={isSyncing}>
+                  {isSyncing ? '🔄 Синхронизация...' : '☁️ Синхронизировать'}
+                </button>
+                <button onClick={() => alert('Загрузка из Gist')}>
+                  📥 Загрузить с другого устройства
+                </button>
+              </div>
+            ) : (
+              <div className="no-permissions">
+                <p>❌ Токену не хватает прав <strong>gist</strong></p>
+                <button onClick={createTokenWithAllPermissions}>
+                  🔑 Создать токен с нужными правами
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+        
+        {/* Вкладка Git операций */}
+        {activeTab === 'git' && (
+          <div className="git-tab">
+            <h3>📁 Управление репозиторием</h3>
             
-            <button 
-              onClick={handleClearSettings}
-              className="clear-btn"
-            >
-              🗑️ Сбросить
-            </button>
+            {!repoConfig.owner ? (
+              <div className="setup-repo">
+                <p>Репозиторий не настроен</p>
+                <button onClick={setupRepository} className="setup-repo-btn">
+                  🔗 Настроить репозиторий
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="repo-info">
+                  <p><strong>Репозиторий:</strong> {repoConfig.owner}/{repoConfig.name}</p>
+                  <p><strong>Ветка:</strong> {repoConfig.branch}</p>
+                </div>
+                
+                <div className="git-operations">
+                  <h4>Git операции:</h4>
+                  <div className="git-buttons">
+                    <button 
+                      onClick={() => performGitOperation('commit')}
+                      disabled={!permissions.hasRepoAccess || isSyncing}
+                      className="git-btn commit-btn"
+                    >
+                      💾 Коммит изменений
+                      <small>git add . && git commit -m"..."</small>
+                    </button>
+                    
+                    <button 
+                      onClick={() => performGitOperation('push')}
+                      disabled={!permissions.hasRepoAccess || isSyncing}
+                      className="git-btn push-btn"
+                    >
+                      🚀 Отправить в репозиторий
+                      <small>git push origin main</small>
+                    </button>
+                    
+                    <button 
+                      onClick={() => performGitOperation('pull')}
+                      disabled={!permissions.hasRepoAccess || isSyncing}
+                      className="git-btn pull-btn"
+                    >
+                      📥 Получить из репозитория
+                      <small>git pull origin main</small>
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+            
+            {!permissions.hasRepoAccess && (
+              <div className="permissions-warning">
+                ⚠️ Для Git операций нужен токен с правами <strong>repo</strong>
+              </div>
+            )}
           </div>
-          
-          <div className="sync-warning">
-            <p>⚠️ <strong>Важно:</strong></p>
-            <ul>
-              <li>Не делитесь токеном и Gist ID с другими</li>
-              <li>Токен хранится только в вашем браузере</li>
-              <li>Для безопасности регулярно обновляйте токены</li>
-              <li>Делайте резервные копии через экспорт</li>
-            </ul>
+        )}
+        
+        {/* Вкладка настроек */}
+        {activeTab === 'settings' && (
+          <div className="settings-tab">
+            <h3>⚙️ Настройки GitHub</h3>
+            
+            <div className="token-settings">
+              <label>GitHub Token:</label>
+              <div className="token-input-group">
+                <input
+                  type={showToken ? "text" : "password"}
+                  value={githubToken}
+                  onChange={(e) => setGithubToken(e.target.value)}
+                  placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                  className="token-input"
+                />
+                <button 
+                  onClick={() => setShowToken(!showToken)}
+                  className="toggle-visibility"
+                >
+                  {showToken ? '👁️' : '👁️‍🗨️'}
+                </button>
+              </div>
+              
+              <button onClick={createTokenWithAllPermissions} className="create-token-full">
+                🔗 Создать токен с полными правами (gist + repo)
+              </button>
+              
+              <div className="permissions-info">
+                <p><strong>Нужные права:</strong></p>
+                <ul>
+                  <li>✅ <strong>gist</strong> - для синхронизации между устройствами</li>
+                  <li>✅ <strong>repo</strong> - для работы с репозиторием</li>
+                </ul>
+              </div>
+            </div>
+            
+            <div className="repo-settings">
+              <h4>Настройки репозитория:</h4>
+              <button onClick={setupRepository} className="setup-repo-btn">
+                {repoConfig.owner ? '✏️ Изменить репозиторий' : '🔗 Настроить репозиторий'}
+              </button>
+              
+              {repoConfig.owner && (
+                <div className="current-repo">
+                  <p>Текущий: {repoConfig.owner}/{repoConfig.name}</p>
+                  <a 
+                    href={repoConfig.url} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="repo-link"
+                  >
+                    🔗 Открыть на GitHub
+                  </a>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 };

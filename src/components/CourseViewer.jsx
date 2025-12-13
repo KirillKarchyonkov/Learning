@@ -8,7 +8,8 @@ const CourseViewer = ({
   selectedSectionId,
   onSelectSection,
   selectedTabId,
-  onSelectTab
+  onSelectTab,
+  onGitCommit
 }) => {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [title, setTitle] = useState(course.title);
@@ -18,41 +19,89 @@ const CourseViewer = ({
   const selectedTab = selectedSection?.tabs?.find(t => t.id === selectedTabId);
 
   const handleSaveCourse = () => {
-    onUpdateCourse(course.id, {
+    const updatedCourse = {
       ...course,
       title,
-      description
-    });
+      description,
+      updatedAt: new Date().toISOString()
+    };
+    onUpdateCourse(course.id, updatedCourse);
     setIsEditingTitle(false);
+    
+    // Предлагаем закоммитить изменения
+    if (onGitCommit && (title !== course.title || description !== course.description)) {
+      setTimeout(() => {
+        if (window.confirm('Закоммитить изменения в курсе?')) {
+          onGitCommit();
+        }
+      }, 500);
+    }
   };
 
   const addSection = () => {
     const newSection = {
       id: Date.now(),
       title: `Новый раздел ${course.sections.length + 1}`,
-      tabs: []
+      tabs: [],
+      createdAt: new Date().toISOString()
     };
     const updatedCourse = {
       ...course,
-      sections: [...(course.sections || []), newSection]
+      sections: [...(course.sections || []), newSection],
+      updatedAt: new Date().toISOString()
     };
     onUpdateCourse(course.id, updatedCourse);
     onSelectSection(newSection.id);
+    
+    // Предлагаем закоммитить
+    if (onGitCommit) {
+      setTimeout(() => {
+        if (window.confirm('Закоммитить добавление раздела?')) {
+          onGitCommit();
+        }
+      }, 500);
+    }
   };
 
   const updateSection = (sectionId, updatedSection) => {
     const updatedSections = course.sections.map(section =>
-      section.id === sectionId ? updatedSection : section
+      section.id === sectionId ? {
+        ...updatedSection,
+        updatedAt: new Date().toISOString()
+      } : section
     );
-    onUpdateCourse(course.id, { ...course, sections: updatedSections });
+    const updatedCourse = {
+      ...course,
+      sections: updatedSections,
+      updatedAt: new Date().toISOString()
+    };
+    onUpdateCourse(course.id, updatedCourse);
   };
 
   const deleteSection = (sectionId) => {
-    const updatedSections = course.sections.filter(s => s.id !== sectionId);
-    onUpdateCourse(course.id, { ...course, sections: updatedSections });
-    if (selectedSectionId === sectionId) {
-      onSelectSection(null);
-      onSelectTab(null);
+    const sectionToDelete = course.sections.find(s => s.id === sectionId);
+    if (window.confirm(`Удалить раздел "${sectionToDelete?.title}"?`)) {
+      const updatedSections = course.sections.filter(s => s.id !== sectionId);
+      const updatedCourse = {
+        ...course,
+        sections: updatedSections,
+        updatedAt: new Date().toISOString()
+      };
+      onUpdateCourse(course.id, updatedCourse);
+      
+      if (selectedSectionId === sectionId) {
+        onSelectSection(null);
+        onSelectTab(null);
+      }
+      
+      // Предлагаем закоммитить
+      if (onGitCommit) {
+        setTimeout(() => {
+          if (window.confirm('Закоммитить удаление раздела?')) {
+            onGitCommit();
+          }
+        }, 500);
+      }
     }
   };
 
@@ -74,20 +123,43 @@ const CourseViewer = ({
               className="description-input"
               placeholder="Описание курса"
             />
-            <button onClick={handleSaveCourse}>Сохранить</button>
-            <button onClick={() => {
-              setIsEditingTitle(false);
-              setTitle(course.title);
-              setDescription(course.description);
-            }}>Отмена</button>
+            <div className="edit-actions">
+              <button onClick={handleSaveCourse}>💾 Сохранить</button>
+              <button onClick={() => {
+                setIsEditingTitle(false);
+                setTitle(course.title);
+                setDescription(course.description);
+              }}>❌ Отмена</button>
+            </div>
           </div>
         ) : (
           <>
-            <div>
+            <div className="course-title-section">
               <h2>{course.title}</h2>
-              <p>{course.description}</p>
+              <p className="course-description">{course.description}</p>
+              <div className="course-meta">
+                {course.createdAt && (
+                  <span>Создан: {new Date(course.createdAt).toLocaleDateString()}</span>
+                )}
+                {course.updatedAt && (
+                  <span>Обновлен: {new Date(course.updatedAt).toLocaleDateString()}</span>
+                )}
+              </div>
             </div>
-            <button onClick={() => setIsEditingTitle(true)}>✏️ Редактировать</button>
+            <div className="course-actions">
+              <button onClick={() => setIsEditingTitle(true)} title="Редактировать">
+                ✏️
+              </button>
+              {onGitCommit && (
+                <button 
+                  onClick={onGitCommit}
+                  className="git-commit-btn"
+                  title="Закоммитить изменения курса"
+                >
+                  💾
+                </button>
+              )}
+            </div>
           </>
         )}
       </div>
@@ -96,9 +168,11 @@ const CourseViewer = ({
         <div className="sections-sidebar">
           <div className="sections-header">
             <h3>Разделы курса</h3>
-            <button onClick={addSection} className="add-section-btn">
-              + Добавить раздел
-            </button>
+            <div className="section-actions">
+              <button onClick={addSection} className="add-section-btn">
+                + Добавить раздел
+              </button>
+            </div>
           </div>
           
           <div className="sections-list">
@@ -120,12 +194,11 @@ const CourseViewer = ({
                     className="delete-section-btn"
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (window.confirm('Удалить раздел?')) {
-                        deleteSection(section.id);
-                      }
+                      deleteSection(section.id);
                     }}
+                    title="Удалить раздел"
                   >
-                    ×
+                    🗑️
                   </button>
                 </div>
                 
@@ -155,6 +228,7 @@ const CourseViewer = ({
                 onUpdateSection={(updatedSection) => updateSection(selectedSection.id, updatedSection)}
                 selectedTabId={selectedTabId}
                 onSelectTab={onSelectTab}
+                onGitCommit={onGitCommit}
               />
               
               {selectedTab && (
@@ -166,12 +240,16 @@ const CourseViewer = ({
                     );
                     updateSection(selectedSection.id, { ...selectedSection, tabs: updatedTabs });
                   }}
+                  onGitCommit={onGitCommit}
                 />
               )}
             </div>
           ) : (
             <div className="no-section-selected">
               <p>Выберите раздел слева или создайте новый</p>
+              <button onClick={addSection} className="create-section-btn">
+                + Создать первый раздел
+              </button>
             </div>
           )}
         </div>

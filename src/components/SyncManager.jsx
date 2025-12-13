@@ -7,8 +7,11 @@ const SyncManager = ({
   localChanges, 
   remoteChanges,
   onSync,
+  onRepoSync,
   autoSync,
-  onToggleAutoSync 
+  onToggleAutoSync,
+  hasGistAccess,
+  hasRepoAccess
 }) => {
   const [showSyncDetails, setShowSyncDetails] = useState(false);
 
@@ -22,17 +25,31 @@ const SyncManager = ({
           </span>
         ) : (
           <>
-            <button 
-              onClick={(e) => {
-                e.stopPropagation();
-                onSync();
-              }}
-              className="sync-button"
-              disabled={isSyncing}
-              title="Синхронизировать сейчас"
-            >
-              🔄
-            </button>
+            {hasRepoAccess ? (
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRepoSync();
+                }}
+                className="repo-sync-button"
+                disabled={isSyncing}
+                title="Синхронизировать с репозиторием"
+              >
+                📦
+              </button>
+            ) : (
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSync();
+                }}
+                className="sync-button"
+                disabled={isSyncing || !hasGistAccess}
+                title="Синхронизировать через Gist"
+              >
+                🔄
+              </button>
+            )}
             
             {lastSync && (
               <span className="last-sync-time" title="Последняя синхронизация">
@@ -63,6 +80,18 @@ const SyncManager = ({
             
             <div className="sync-stats">
               <div className="stat">
+                <span className="stat-label">Доступ к Gist:</span>
+                <span className="stat-value">
+                  {hasGistAccess ? '✅' : '❌'}
+                </span>
+              </div>
+              <div className="stat">
+                <span className="stat-label">Доступ к репозиториям:</span>
+                <span className="stat-value">
+                  {hasRepoAccess ? '✅' : '❌'}
+                </span>
+              </div>
+              <div className="stat">
                 <span className="stat-label">Локальные изменения:</span>
                 <span className="stat-value">{localChanges}</span>
               </div>
@@ -84,15 +113,27 @@ const SyncManager = ({
                   type="checkbox" 
                   checked={autoSync}
                   onChange={onToggleAutoSync}
+                  disabled={!hasGistAccess}
                 />
-                Автоматическая синхронизация (каждые 30 секунд)
+                Автоматическая синхронизация Gist (каждые 30 секунд)
               </label>
+              {!hasGistAccess && (
+                <small className="hint">Требуется доступ к Gist</small>
+              )}
             </div>
             
             <div className="sync-actions">
-              <button onClick={onSync} disabled={isSyncing} className="sync-now-btn">
-                {isSyncing ? 'Синхронизация...' : 'Синхронизировать сейчас'}
-              </button>
+              {hasRepoAccess && (
+                <button onClick={onRepoSync} disabled={isSyncing} className="repo-sync-now-btn">
+                  {isSyncing ? 'Синхронизация...' : '📦 Синхронизировать репозиторий'}
+                </button>
+              )}
+              
+              {hasGistAccess && (
+                <button onClick={onSync} disabled={isSyncing} className="gist-sync-now-btn">
+                  {isSyncing ? 'Синхронизация...' : '🔄 Синхронизировать через Gist'}
+                </button>
+              )}
               
               <button 
                 onClick={() => setShowSyncDetails(false)}
