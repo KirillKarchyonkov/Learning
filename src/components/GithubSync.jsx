@@ -7,60 +7,96 @@ const GithubSync = ({
   setGistId,
   onSync,
   onLoad,
-  isSyncing 
+  isSyncing,
+  lastSync 
 }) => {
+  const [showSettings, setShowSettings] = useState(!githubToken);
   const [showToken, setShowToken] = useState(false);
-  const [showAdvanced, setShowAdvanced] = useState(false);
-
-  const handleSaveSettings = () => {
-    if (githubToken) {
-      localStorage.setItem('steplik-github-token', githubToken);
-      if (gistId) {
-        localStorage.setItem('steplik-gist-id', gistId);
-      }
-      alert('Настройки сохранены');
-    }
-  };
 
   const handleCreateToken = () => {
     window.open('https://github.com/settings/tokens/new?scopes=gist&description=Steplik%20Personal%20Sync', '_blank');
   };
 
   const handleClearSettings = () => {
-    if (window.confirm('Очистить настройки GitHub?')) {
+    if (window.confirm('Сбросить настройки GitHub?')) {
       localStorage.removeItem('steplik-github-token');
       localStorage.removeItem('steplik-gist-id');
-      localStorage.removeItem('steplik-last-sync');
       setGithubToken('');
       setGistId('');
     }
   };
 
+  if (!showSettings && githubToken) {
+    return (
+      <div className="github-sync-summary">
+        <div className="sync-summary-header">
+          <h4>☁️ Синхронизация настроена</h4>
+          <button 
+            onClick={() => setShowSettings(true)}
+            className="edit-settings-btn"
+          >
+            Изменить
+          </button>
+        </div>
+        
+        <div className="sync-info">
+          <p><strong>Статус:</strong> {gistId ? 'Подключено' : 'Требуется Gist'}</p>
+          {gistId && (
+            <p>
+              <strong>Gist ID:</strong> 
+              <code>{gistId.substring(0, 8)}...</code>
+            </p>
+          )}
+          {lastSync && (
+            <p>
+              <strong>Последняя синхронизация:</strong>
+              {lastSync.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </p>
+          )}
+        </div>
+        
+        <div className="sync-buttons">
+          <button onClick={onSync} disabled={isSyncing || !gistId}>
+            {isSyncing ? '🔄 Синхронизация...' : '☁️ Синхронизировать'}
+          </button>
+          <button onClick={onLoad} disabled={isSyncing || !gistId}>
+            📥 Проверить обновления
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="github-sync-panel">
-      <div className="sync-header" onClick={() => setShowAdvanced(!showAdvanced)}>
-        <h3>☁️ Синхронизация с GitHub</h3>
-        <span className="toggle-icon">{showAdvanced ? '▼' : '▶'}</span>
+      <div className="sync-header" onClick={() => setShowSettings(!showSettings)}>
+        <h3>☁️ Настройка синхронизации</h3>
+        <span className="toggle-icon">{showSettings ? '▼' : '▶'}</span>
       </div>
       
-      {showAdvanced && (
+      {showSettings && (
         <div className="sync-content">
+          <div className="sync-instructions">
+            <p><strong>Как это работает:</strong></p>
+            <ol>
+              <li>Создайте GitHub Personal Access Token (права gist)</li>
+              <li>Введите токен ниже - он сохранится только в вашем браузере</li>
+              <li>На первом устройстве нажмите "Создать Gist"</li>
+              <li>На других устройствах введите тот же токен и Gist ID</li>
+              <li>Изменения будут синхронизироваться автоматически</li>
+            </ol>
+          </div>
+          
           <div className="form-group">
-            <label htmlFor="githubToken">
+            <label>
               GitHub Personal Access Token:
-              <button 
-                type="button" 
-                className="info-btn"
-                onClick={handleCreateToken}
-                title="Создать новый токен"
-              >
-                Как получить?
+              <button type="button" className="info-btn" onClick={handleCreateToken}>
+                Создать токен
               </button>
             </label>
             <div className="input-with-button">
               <input
                 type={showToken ? "text" : "password"}
-                id="githubToken"
                 value={githubToken}
                 onChange={(e) => setGithubToken(e.target.value)}
                 placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
@@ -76,73 +112,67 @@ const GithubSync = ({
               </button>
             </div>
             <small className="hint">
-              Требуются права: gist (создание и управление Gist)
+              Токен нужен только для доступа к вашему Gist
             </small>
           </div>
           
-          <div className="form-group">
-            <label htmlFor="gistId">
-              Gist ID (оставьте пустым для создания нового):
-            </label>
-            <input
-              type="text"
-              id="gistId"
-              value={gistId}
-              onChange={(e) => setGistId(e.target.value)}
-              placeholder="f47ac10b58cc4372a5670e02b2c3d479"
-              className="gist-input"
-            />
-            <small className="hint">
-              Один Gist ID для всех устройств
-            </small>
-          </div>
+          {githubToken && (
+            <div className="form-group">
+              <label>Gist ID (если уже создан):</label>
+              <input
+                type="text"
+                value={gistId}
+                onChange={(e) => setGistId(e.target.value)}
+                placeholder="Оставьте пустым для создания нового"
+                className="gist-input"
+              />
+              <small className="hint">
+                Один Gist ID для всех ваших устройств
+              </small>
+            </div>
+          )}
           
           <div className="sync-actions">
             <button 
-              onClick={handleSaveSettings}
-              className="save-settings-btn"
+              onClick={() => {
+                if (githubToken) {
+                  localStorage.setItem('steplik-github-token', githubToken);
+                  if (gistId) {
+                    localStorage.setItem('steplik-gist-id', gistId);
+                  }
+                  setShowSettings(false);
+                }
+              }}
               disabled={!githubToken}
+              className="save-settings-btn"
             >
               💾 Сохранить настройки
             </button>
             
             <button 
-              onClick={onSync}
+              onClick={() => onSync('create')}
               disabled={isSyncing || !githubToken}
-              className="sync-btn"
+              className="create-gist-btn"
             >
-              {gistId ? '🔄 Обновить Gist' : '☁️ Создать новый Gist'}
-            </button>
-            
-            <button 
-              onClick={onLoad}
-              disabled={isSyncing || !githubToken || !gistId}
-              className="load-btn"
-            >
-              📥 Загрузить из Gist
+              {gistId ? '🔄 Обновить Gist' : '☁️ Создать Gist'}
             </button>
             
             <button 
               onClick={handleClearSettings}
               className="clear-btn"
             >
-              🗑️ Очистить настройки
+              🗑️ Сбросить
             </button>
           </div>
           
-          <div className="sync-help">
-            <h4>Инструкция:</h4>
-            <ol>
-              <li>Создайте Personal Access Token на GitHub (права gist)</li>
-              <li>Введите токен выше</li>
-              <li>Нажмите "Создать новый Gist" для первого устройства</li>
-              <li>Сохраните Gist ID где-нибудь</li>
-              <li>На другом устройстве введите тот же токен и Gist ID</li>
-              <li>Нажмите "Загрузить из Gist"</li>
-            </ol>
-            <div className="warning">
-              ⚠️ Не делитесь токеном и Gist ID с другими!
-            </div>
+          <div className="sync-warning">
+            <p>⚠️ <strong>Важно:</strong></p>
+            <ul>
+              <li>Не делитесь токеном и Gist ID с другими</li>
+              <li>Токен хранится только в вашем браузере</li>
+              <li>Для безопасности регулярно обновляйте токены</li>
+              <li>Делайте резервные копии через экспорт</li>
+            </ul>
           </div>
         </div>
       )}
