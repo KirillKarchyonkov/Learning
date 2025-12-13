@@ -4,8 +4,106 @@ import CourseViewer from './components/CourseViewer';
 import GithubSync from './components/GithubSync';
 import DataManagement from './components/DataManagement';
 import SyncManager from './components/SyncManager';
-import { GitHubApi } from './utils/githubApi';
 import './App.css';
+
+// Утилиты для работы с GitHub API
+class GitHubApi {
+  constructor(token) {
+    this.token = token;
+    this.baseUrl = 'https://api.github.com';
+  }
+
+  async request(endpoint, options = {}) {
+    const url = `${this.baseUrl}${endpoint}`;
+    
+    const defaultHeaders = {
+      'Authorization': `Bearer ${this.token}`,
+      'Accept': 'application/vnd.github.v3+json',
+      'Content-Type': 'application/json'
+    };
+
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        ...defaultHeaders,
+        ...options.headers
+      }
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`GitHub API Error ${response.status}: ${errorText}`);
+    }
+
+    return response.json();
+  }
+
+  // Кодировка строки в base64
+  encodeToBase64(str) {
+    try {
+      // Используем TextEncoder для правильной работы с Unicode
+      const encoder = new TextEncoder();
+      const data = encoder.encode(str);
+      const binaryString = Array.from(data).map(byte => String.fromCharCode(byte)).join('');
+      return btoa(binaryString);
+    } catch (error) {
+      // Fallback для старых браузеров
+      return btoa(unescape(encodeURIComponent(str)));
+    }
+  }
+
+  // Декодировка из base64
+  decodeFromBase64(base64) {
+    try {
+      // Используем TextDecoder для правильной работы с Unicode
+      const binaryString = atob(base64);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      const decoder = new TextDecoder('utf-8');
+      return decoder.decode(bytes);
+    } catch (error) {
+      // Fallback для старых браузеров
+      return decodeURIComponent(escape(atob(base64)));
+    }
+  }
+
+  // Улучшенная функция для работы с файлами
+  async getFileContent(owner, repo, path, branch = 'main') {
+    try {
+      const response = await this.request(`/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}?ref=${branch}`);
+      return response;
+    } catch (error) {
+      if (error.message.includes('404')) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  async createOrUpdateFile(owner, repo, path, content, message, branch = 'main', sha = null) {
+    const body = {
+      message,
+      content: this.encodeToBase64(content),
+      branch,
+      ...(sha && { sha })
+    };
+
+    return this.request(`/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}`, {
+      method: 'PUT',
+      body: JSON.stringify(body)
+    });
+  }
+
+  async getCommits(owner, repo, branch = 'main', perPage = 10) {
+    return this.request(`/repos/${owner}/${repo}/commits?sha=${branch}&per_page=${perPage}`);
+  }
+
+  async getRepo(owner, repo) {
+    return this.request(`/repos/${owner}/${repo}`);
+  }
+}
 
 function App() {
   // Состояние для данных курсов
@@ -36,6 +134,7 @@ function App() {
   const [gitChanges, setGitChanges] = useState([]);
   const [lastCommitSha, setLastCommitSha] = useState('');
   const [repoCommits, setRepoCommits] = useState([]);
+  const [repoInfo, setRepoInfo] = useState(null);
   
   // Состояние для репозитория GitHub
   const [repoConfig, setRepoConfig] = useState({
@@ -53,10 +152,16 @@ function App() {
 
   // Ref для хранения экземпляра GitHub API
   const githubApiRef = useRef(null);
+  const syncTimeoutRef = useRef(null);
 
   // Загрузка всех данных при монтировании
   useEffect(() => {
     loadAllData();
+    return () => {
+      if (syncTimeoutRef.current) {
+        clearTimeout(syncTimeoutRef.current);
+      }
+    };
   }, []);
 
   const loadAllData = () => {
@@ -117,7 +222,7 @@ function App() {
         const repo = JSON.parse(savedRepo);
         setRepoConfig(repo);
         if (repo.owner && repo.name && savedToken) {
-          loadRepoCommits(repo.owner, repo.name, repo.branch, savedToken);
+          loadRepoInfo(repo.owner, repo.name, savedToken);
         }
       }
       
@@ -143,6 +248,17 @@ function App() {
     }
   }, [githubToken]);
 
+  // Автоматическая синхронизация
+  useEffect(() => {
+    if (!autoSync || !githubToken || !gistId || !githubPermissions.hasGistAccess) return;
+
+    const checkInterval = setInterval(() => {
+      checkForRemoteChanges();
+    }, 30000); // Каждые 30 секунд
+
+    return () => clearInterval(checkInterval);
+  }, [autoSync, githubToken, gistId, githubPermissions.hasGistAccess]);
+
   // Проверка прав токена
   const checkTokenPermissions = useCallback(async (token) => {
     if (!token) return;
@@ -155,17 +271,15 @@ function App() {
       // Проверяем доступ к Gist
       try {
         await api.request('/gists');
-        setGithubPermissions(prev => ({
-          ...prev,
+        setGithubPermissions({
           hasGistAccess: true,
           hasRepoAccess: true
-        }));
+        });
       } catch {
-        setGithubPermissions(prev => ({
-          ...prev,
+        setGithubPermissions({
           hasGistAccess: false,
           hasRepoAccess: true
-        }));
+        });
       }
       
     } catch (error) {
@@ -174,11 +288,15 @@ function App() {
     }
   }, []);
 
-  // Загрузка коммитов из репозитория
-  const loadRepoCommits = async (owner, repo, branch, token) => {
+  // Загрузка информации о репозитории
+  const loadRepoInfo = async (owner, repo, token) => {
     try {
       const api = new GitHubApi(token);
-      const commits = await api.getCommits(owner, repo, branch);
+      const info = await api.getRepo(owner, repo);
+      setRepoInfo(info);
+      
+      // Загружаем коммиты
+      const commits = await api.getCommits(owner, repo, repoConfig.branch);
       setRepoCommits(commits);
       
       if (commits.length > 0) {
@@ -186,7 +304,7 @@ function App() {
         localStorage.setItem('steplik-last-commit-sha', commits[0].sha);
       }
     } catch (error) {
-      console.error('Ошибка загрузки коммитов:', error);
+      console.error('Ошибка загрузки информации о репозитории:', error);
     }
   };
 
@@ -242,6 +360,16 @@ function App() {
     }
   }, [courses]);
 
+  // Сохранение состояния навигации
+  useEffect(() => {
+    const lastState = {
+      courseId: selectedCourseId,
+      sectionId: selectedSectionId,
+      tabId: selectedTabId
+    };
+    localStorage.setItem('steplik-last-state', JSON.stringify(lastState));
+  }, [selectedCourseId, selectedSectionId, selectedTabId]);
+
   // Сохранение настроек
   useEffect(() => {
     if (githubToken) localStorage.setItem('steplik-github-token', githubToken);
@@ -251,6 +379,13 @@ function App() {
       localStorage.setItem('steplik-repo-config', JSON.stringify(repoConfig));
     }
   }, [githubToken, gistId, autoSync, repoConfig]);
+
+  // При изменении токена проверяем права
+  useEffect(() => {
+    if (githubToken) {
+      checkTokenPermissions(githubToken);
+    }
+  }, [githubToken, checkTokenPermissions]);
 
   // Проверка Git статуса
   const checkGitStatus = () => {
@@ -297,9 +432,231 @@ function App() {
     return changes.slice(0, 5);
   };
 
-  // === РЕАЛЬНЫЕ GIT ОПЕРАЦИИ ЧЕРЕЗ GITHUB API ===
+  // Проверка обновлений в Gist
+  const checkForRemoteChanges = async () => {
+    if (!githubToken || !gistId || !githubPermissions.hasGistAccess) return;
+    
+    try {
+      const api = new GitHubApi(githubToken);
+      const response = await api.request(`/gists/${gistId}`);
+      
+      const lastUpdated = new Date(response.updated_at);
+      const lastLocalSync = localStorage.getItem('steplik-last-sync-time');
+      
+      if (!lastLocalSync || new Date(lastLocalSync) < lastUpdated) {
+        setRemoteChanges(1);
+        setSyncStatus(`🔄 Обновления в Gist (${lastUpdated.toLocaleTimeString()})`);
+      }
+    } catch (error) {
+      console.error('Ошибка проверки Gist:', error);
+    }
+  };
 
-  // Коммит изменений в репозиторий
+  // ==================== GIST СИНХРОНИЗАЦИЯ ====================
+  const syncWithGithubGist = async () => {
+    if (!githubToken) {
+      alert('Введите GitHub Personal Access Token в настройках');
+      return;
+    }
+    
+    if (!githubPermissions.hasGistAccess) {
+      alert('Токену не хватает прав gist. Создайте новый токен с правами gist');
+      return;
+    }
+    
+    setIsSyncing(true);
+    setSyncStatus('Проверка изменений в Gist...');
+    
+    try {
+      const api = new GitHubApi(githubToken);
+      
+      // Если нет gistId, создаем новый Gist
+      if (!gistId) {
+        await createNewGist(api);
+      } else {
+        // Проверяем, существует ли Gist
+        const gistExists = await checkGistExists(api);
+        if (!gistExists) {
+          await createNewGist(api);
+        } else {
+          await handleGistUpdate(api);
+        }
+      }
+      
+      const now = new Date();
+      setLastSync(now);
+      localStorage.setItem('steplik-last-sync-time', now.toISOString());
+      localStorage.setItem('steplik-last-synced-data', JSON.stringify(courses));
+      localStorage.setItem('steplik-last-sync', now.toISOString());
+      
+      setLocalChanges(0);
+      setRemoteChanges(0);
+      setSyncStatus('✅ Данные синхронизированы через Gist');
+      
+    } catch (error) {
+      console.error('Ошибка синхронизации Gist:', error);
+      setSyncStatus(`❌ Ошибка: ${error.message}`);
+      alert(`Ошибка синхронизации: ${error.message}`);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const checkGistExists = async (api) => {
+    try {
+      await api.request(`/gists/${gistId}`);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const createNewGist = async (api) => {
+    const data = {
+      courses,
+      lastState: { selectedCourseId, selectedSectionId, selectedTabId },
+      metadata: {
+        version: '1.0',
+        lastModified: new Date().toISOString(),
+        totalCourses: courses.length,
+        syncedFrom: 'Steplik Personal App'
+      }
+    };
+
+    const response = await api.request('/gists', {
+      method: 'POST',
+      body: JSON.stringify({
+        files: { 'steplik-data.json': { content: JSON.stringify(data, null, 2) } },
+        description: 'Steplik Personal - данные курсов',
+        public: false
+      })
+    });
+
+    const newGistId = response.id;
+    setGistId(newGistId);
+    localStorage.setItem('steplik-gist-id', newGistId);
+    
+    return response;
+  };
+
+  const handleGistUpdate = async (api) => {
+    const gist = await api.request(`/gists/${gistId}`);
+    const gistUpdatedAt = new Date(gist.updated_at);
+    const localUpdatedAt = new Date(localStorage.getItem('steplik-last-modified') || 0);
+    const lastSyncTime = new Date(localStorage.getItem('steplik-last-sync-time') || 0);
+
+    if (!gist.files['steplik-data.json']) {
+      await updateGistData(api);
+      return;
+    }
+
+    const gistContent = gist.files['steplik-data.json'].content;
+    let gistData;
+    try {
+      gistData = JSON.parse(api.decodeFromBase64(gistContent));
+    } catch (error) {
+      console.error('Ошибка парсинга данных Gist:', error);
+      throw new Error('Неверный формат данных в Gist');
+    }
+
+    // Проверяем конфликты
+    if (gistUpdatedAt > lastSyncTime && localUpdatedAt > lastSyncTime) {
+      setConflict({
+        serverTime: gistUpdatedAt,
+        localTime: localUpdatedAt,
+        serverData: gistData.courses || [],
+        localData: courses
+      });
+      throw new Error('Обнаружен конфликт изменений');
+    } else if (gistUpdatedAt > lastSyncTime) {
+      if (window.confirm('В Gist есть новые изменения. Загрузить их?')) {
+        setCourses(gistData.courses || []);
+        saveToLocalStorage(gistData.courses || []);
+        if (gistData.lastState) {
+          setSelectedCourseId(gistData.lastState.selectedCourseId);
+          setSelectedSectionId(gistData.lastState.selectedSectionId);
+          setSelectedTabId(gistData.lastState.selectedTabId);
+        }
+        setSyncStatus('✅ Данные загружены из Gist');
+      }
+    } else {
+      await updateGistData(api);
+    }
+  };
+
+  const updateGistData = async (api) => {
+    const data = {
+      courses,
+      lastState: { selectedCourseId, selectedSectionId, selectedTabId },
+      metadata: {
+        version: '1.0',
+        lastModified: new Date().toISOString(),
+        totalCourses: courses.length,
+        syncedFrom: 'Steplik Personal App'
+      }
+    };
+
+    await api.request(`/gists/${gistId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        files: { 'steplik-data.json': { content: JSON.stringify(data, null, 2) } }
+      })
+    });
+  };
+
+  // Загрузка данных из Gist
+  const loadFromGithubGist = async () => {
+    if (!githubToken || !gistId) {
+      alert('Настройте синхронизацию Gist в первую очередь');
+      return;
+    }
+
+    if (!window.confirm('Загрузить данные из GitHub Gist? Текущие данные будут заменены.')) {
+      return;
+    }
+
+    setIsSyncing(true);
+    try {
+      const api = new GitHubApi(githubToken);
+      const gist = await api.request(`/gists/${gistId}`);
+      
+      if (!gist.files['steplik-data.json']) {
+        throw new Error('В Gist нет данных Steplik');
+      }
+      
+      const content = gist.files['steplik-data.json'].content;
+      const data = JSON.parse(api.decodeFromBase64(content));
+
+      if (!data.courses) {
+        throw new Error('Неверный формат данных в Gist');
+      }
+
+      setCourses(data.courses);
+      saveToLocalStorage(data.courses);
+      
+      if (data.lastState) {
+        setSelectedCourseId(data.lastState.selectedCourseId);
+        setSelectedSectionId(data.lastState.selectedSectionId);
+        setSelectedTabId(data.lastState.selectedTabId);
+      }
+
+      const now = new Date();
+      setLastSync(now);
+      localStorage.setItem('steplik-last-sync', now.toISOString());
+      localStorage.setItem('steplik-last-sync-time', now.toISOString());
+      localStorage.setItem('steplik-last-synced-data', JSON.stringify(data.courses));
+      
+      alert(`✅ Загружено ${data.courses.length} курсов из GitHub Gist!`);
+      
+    } catch (error) {
+      console.error('Ошибка загрузки из Gist:', error);
+      alert(`❌ Ошибка: ${error.message}`);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  // ==================== GIT РЕПОЗИТОРИЙ ОПЕРАЦИИ ====================
   const performRealGitCommit = async (message = '') => {
     if (!githubApiRef.current || !repoConfig.owner || !repoConfig.name) {
       throw new Error('Репозиторий не настроен');
@@ -310,32 +667,37 @@ function App() {
     try {
       setGitStatus('💾 Создание коммита...');
       
-      // Получаем текущее содержимое файла
+      // Подготавливаем данные для сохранения
+      const dataToSave = {
+        courses,
+        metadata: {
+          lastModified: new Date().toISOString(),
+          totalCourses: courses.length,
+          totalSections: courses.reduce((acc, course) => acc + (course.sections?.length || 0), 0),
+          commitMessage,
+          appVersion: '1.0'
+        }
+      };
+      
+      const content = JSON.stringify(dataToSave, null, 2);
+      
+      // Проверяем существование файла
       let fileSha = null;
       try {
-        const fileContent = await githubApiRef.current.getFileContent(
+        const existingFile = await githubApiRef.current.getFileContent(
           repoConfig.owner,
           repoConfig.name,
           'steplik-courses.json',
           repoConfig.branch
         );
-        if (fileContent) {
-          fileSha = fileContent.sha;
+        if (existingFile) {
+          fileSha = existingFile.sha;
         }
       } catch (error) {
         // Файл не существует - это нормально
       }
       
       // Создаем или обновляем файл
-      const content = JSON.stringify({
-        courses,
-        metadata: {
-          lastModified: new Date().toISOString(),
-          totalCourses: courses.length,
-          commitMessage
-        }
-      }, null, 2);
-      
       const result = await githubApiRef.current.createOrUpdateFile(
         repoConfig.owner,
         repoConfig.name,
@@ -353,7 +715,8 @@ function App() {
         timestamp: new Date().toISOString(),
         changes: gitChanges,
         coursesCount: courses.length,
-        githubSha: result.commit.sha
+        githubSha: result.commit.sha,
+        githubUrl: result.commit.html_url
       };
       
       const updatedHistory = [newCommit, ...gitHistory.slice(0, 9)];
@@ -363,12 +726,22 @@ function App() {
       // Сохраняем как последний коммит
       localStorage.setItem('steplik-last-commit-data', JSON.stringify(courses));
       localStorage.setItem('steplik-last-commit-sha', result.commit.sha);
+      localStorage.setItem('steplik-last-commit-time', new Date().toISOString());
       
-      // Обновляем коммиты
-      await loadRepoCommits(repoConfig.owner, repoConfig.name, repoConfig.branch, githubToken);
+      // Обновляем коммиты из репозитория
+      await loadRepoInfo(repoConfig.owner, repoConfig.name, githubToken);
       
       setGitChanges([]);
       setGitStatus(`✅ Закоммичено: "${commitMessage}"`);
+      
+      // Показываем ссылку на коммит
+      setTimeout(() => {
+        if (result.commit.html_url) {
+          if (window.confirm('Коммит создан! Открыть на GitHub?')) {
+            window.open(result.commit.html_url, '_blank');
+          }
+        }
+      }, 500);
       
       return { 
         success: true, 
@@ -378,12 +751,32 @@ function App() {
       
     } catch (error) {
       console.error('Ошибка создания коммита:', error);
-      setGitStatus('❌ Ошибка при создании коммита');
-      throw error;
+      
+      let errorMessage = 'Ошибка при создании коммита';
+      if (error.message.includes('409')) {
+        errorMessage = 'Конфликт: файл был изменен. Сначала получите изменения.';
+      } else if (error.message.includes('422')) {
+        errorMessage = 'Ошибка валидации. Проверьте формат данных.';
+      }
+      
+      setGitStatus(`❌ ${errorMessage}`);
+      throw new Error(`${errorMessage}: ${error.message}`);
     }
   };
 
-  // Push изменений (в нашем случае коммит уже включает push)
+  const generateCommitMessage = () => {
+    if (gitChanges.length === 0) return 'Обновление данных курсов';
+    
+    const addedCourses = gitChanges.filter(c => c.includes('Добавлен курс:')).length;
+    const removedCourses = gitChanges.filter(c => c.includes('Удален курс:')).length;
+    
+    if (addedCourses > 0) return `Добавлено ${addedCourses} курс${addedCourses > 1 ? 'ов' : ''}`;
+    if (removedCourses > 0) return `Удалено ${removedCourses} курс${removedCourses > 1 ? 'ов' : ''}`;
+    
+    return 'Обновление курсов';
+  };
+
+  // Push изменений
   const performGitPush = async () => {
     return performRealGitCommit('Auto push from Steplik');
   };
@@ -406,30 +799,91 @@ function App() {
       );
       
       if (!fileContent) {
-        throw new Error('Файл не найден в репозитории');
+        return { 
+          success: true, 
+          data: { courses: [] },
+          fileExists: false
+        };
       }
       
       // Декодируем содержимое
-      const content = atob(fileContent.content);
-      const data = JSON.parse(content);
-      
-      if (!data.courses) {
-        throw new Error('Неверный формат данных в репозитории');
+      let decodedContent;
+      try {
+        decodedContent = githubApiRef.current.decodeFromBase64(fileContent.content);
+      } catch (decodeError) {
+        console.error('Ошибка декодирования:', decodeError);
+        decodedContent = atob(fileContent.content);
       }
       
-      // Обновляем коммиты
-      await loadRepoCommits(repoConfig.owner, repoConfig.name, repoConfig.branch, githubToken);
+      // Парсим JSON
+      let data;
+      try {
+        data = JSON.parse(decodedContent);
+      } catch (parseError) {
+        console.error('Ошибка парсинга:', parseError);
+        const cleanedContent = decodedContent.replace(/^\uFEFF/, '').trim();
+        data = JSON.parse(cleanedContent);
+      }
+      
+      if (!data.courses) {
+        data.courses = [];
+      }
+      
+      // Обновляем информацию о репозитории
+      await loadRepoInfo(repoConfig.owner, repoConfig.name, githubToken);
       
       return { 
         success: true, 
         data,
-        fileContent 
+        fileContent,
+        fileExists: true
       };
       
     } catch (error) {
       console.error('Ошибка получения данных:', error);
-      setGitStatus('❌ Ошибка при получении данных');
-      throw error;
+      
+      let errorMessage = 'Ошибка при получении данных';
+      if (error.message.includes('404')) {
+        errorMessage = 'Файл не найден в репозитории';
+      } else if (error.message.includes('401') || error.message.includes('403')) {
+        errorMessage = 'Ошибка авторизации. Проверьте токен';
+      }
+      
+      setGitStatus(`❌ ${errorMessage}`);
+      throw new Error(`${errorMessage}: ${error.message}`);
+    }
+  };
+
+  // Загрузка данных из репозитория
+  const loadDataFromRepository = async () => {
+    try {
+      const result = await performGitPull();
+      
+      if (result.success && result.fileExists && result.data.courses) {
+        if (window.confirm(`Загрузить ${result.data.courses.length} курсов из репозитория? Локальные данные будут заменены.`)) {
+          setCourses(result.data.courses);
+          saveToLocalStorage(result.data.courses);
+          
+          const now = new Date();
+          setLastSync(now);
+          localStorage.setItem('steplik-last-sync', now.toISOString());
+          localStorage.setItem('steplik-last-sync-time', now.toISOString());
+          
+          checkGitStatus();
+          
+          alert(`✅ Успешно загружено ${result.data.courses.length} курсов!`);
+          return true;
+        }
+      } else if (result.success && !result.fileExists) {
+        alert('В репозитории нет данных. Создайте файл при первом коммите.');
+        return false;
+      }
+      
+      return false;
+    } catch (error) {
+      console.error('Ошибка загрузки:', error);
+      alert(`❌ Ошибка загрузки: ${error.message}`);
+      return false;
     }
   };
 
@@ -437,17 +891,14 @@ function App() {
   const gitAddAndCommit = async (customMessage = '') => {
     try {
       const result = await performRealGitCommit(customMessage);
-      
-      // После успешного коммита проверяем статус
       checkGitStatus();
-      
       return result;
     } catch (error) {
       throw error;
     }
   };
 
-  // Комбинированная операция: pull -> merge -> commit -> push
+  // Синхронизация с репозиторием
   const gitSyncWithRepo = async () => {
     if (!githubApiRef.current || !repoConfig.owner || !repoConfig.name) {
       alert('Репозиторий не настроен');
@@ -455,70 +906,168 @@ function App() {
     }
     
     setIsSyncing(true);
-    setSyncStatus('Синхронизация с репозиторием...');
+    setSyncStatus('🔄 Синхронизация с репозиторием...');
     
     try {
-      // 1. Pull: получаем данные из репозитория
+      // Получаем данные из репозитория
       const pullResult = await performGitPull();
       
-      if (pullResult.success && pullResult.data) {
-        const remoteData = pullResult.data;
+      if (pullResult.success && pullResult.fileExists && pullResult.data.courses) {
+        const remoteCourses = pullResult.data.courses || [];
+        const localCourses = courses;
         
-        // Проверяем, есть ли отличия от локальных данных
-        const localDataStr = JSON.stringify(courses);
-        const remoteDataStr = JSON.stringify(remoteData.courses);
+        // Сравниваем данные
+        const localDataStr = JSON.stringify(localCourses);
+        const remoteDataStr = JSON.stringify(remoteCourses);
         
         if (localDataStr !== remoteDataStr) {
-          // Есть отличия - предлагаем объединить
-          if (window.confirm('В репозитории есть изменения. Объединить с локальными данными?')) {
-            // Простое объединение: добавляем курсы которых нет локально
-            const mergedCourses = [...courses];
-            remoteData.courses.forEach(remoteCourse => {
-              if (!mergedCourses.find(c => c.id === remoteCourse.id)) {
-                mergedCourses.push(remoteCourse);
-              }
-            });
-            
+          // Есть отличия
+          const choice = await showSyncOptions(remoteCourses.length, localCourses.length);
+          
+          if (choice === 'overwrite_local') {
+            setCourses(remoteCourses);
+            saveToLocalStorage(remoteCourses);
+            setSyncStatus('✅ Локальные данные заменены');
+          } else if (choice === 'overwrite_remote') {
+            await performRealGitCommit('Обновление данных с локального устройства');
+            setSyncStatus('✅ Удаленные данные обновлены');
+          } else if (choice === 'merge') {
+            const mergedCourses = mergeCourses(localCourses, remoteCourses);
             setCourses(mergedCourses);
             saveToLocalStorage(mergedCourses);
-            
-            // 2. Commit: коммитим объединенные данные
-            await performRealGitCommit('Merge with remote changes');
+            await performRealGitCommit('Объединение локальных и удаленных изменений');
+            setSyncStatus('✅ Данные объединены и закоммичены');
+          } else {
+            setSyncStatus('❌ Синхронизация отменена');
           }
         } else {
-          // Данные одинаковые, просто коммитим локальные изменения
+          // Данные одинаковые
           if (gitChanges.length > 0) {
             await performRealGitCommit();
+            setSyncStatus('✅ Локальные изменения закоммичены');
           } else {
-            setSyncStatus('✅ Нет изменений для синхронизации');
+            setSyncStatus('✅ Данные синхронизированы');
           }
+        }
+      } else if (pullResult.success && !pullResult.fileExists) {
+        // Файла нет в репозитории
+        if (courses.length > 0) {
+          if (window.confirm('Создать файл в репозитории с текущими данными?')) {
+            await performRealGitCommit('Первоначальный коммит данных курсов');
+            setSyncStatus('✅ Файл создан в репозитории');
+          } else {
+            setSyncStatus('❌ Создание файла отменено');
+          }
+        } else {
+          setSyncStatus('⚠️ Нет данных для сохранения в репозитории');
         }
       }
       
-      setSyncStatus('✅ Синхронизация с репозиторием завершена');
-      
     } catch (error) {
       console.error('Ошибка синхронизации:', error);
-      setSyncStatus(`❌ Ошибка: ${error.message}`);
+      setSyncStatus(`❌ ${error.message}`);
       alert(`Ошибка синхронизации: ${error.message}`);
     } finally {
       setIsSyncing(false);
     }
   };
 
-  const generateCommitMessage = () => {
-    if (gitChanges.length === 0) return 'Обновление данных курсов';
+  // Объединение курсов
+  const mergeCourses = (localCourses, remoteCourses) => {
+    const merged = [...localCourses];
     
-    const addedCourses = gitChanges.filter(c => c.includes('Добавлен курс:')).length;
-    const removedCourses = gitChanges.filter(c => c.includes('Удален курс:')).length;
+    remoteCourses.forEach(remoteCourse => {
+      const existingIndex = merged.findIndex(c => c.id === remoteCourse.id);
+      
+      if (existingIndex === -1) {
+        merged.push(remoteCourse);
+      } else {
+        const localCourse = merged[existingIndex];
+        const localTime = new Date(localCourse.updatedAt || localCourse.createdAt || 0);
+        const remoteTime = new Date(remoteCourse.updatedAt || remoteCourse.createdAt || 0);
+        
+        if (remoteTime > localTime) {
+          merged[existingIndex] = remoteCourse;
+        }
+      }
+    });
     
-    if (addedCourses > 0) return `Добавлено ${addedCourses} курс${addedCourses > 1 ? 'ов' : ''}`;
-    if (removedCourses > 0) return `Удалено ${removedCourses} курс${removedCourses > 1 ? 'ов' : ''}`;
-    
-    return 'Обновление курсов';
+    return merged;
   };
 
-  // Операции с курсами (остаются без изменений)
+  // Показать опции синхронизации
+  const showSyncOptions = (remoteCount, localCount) => {
+    return new Promise((resolve) => {
+      const modal = document.createElement('div');
+      modal.className = 'sync-options-modal';
+      modal.innerHTML = `
+        <div class="sync-modal-content">
+          <h3>🔄 Обнаружены различия в данных</h3>
+          <p>В репозитории: ${remoteCount} курсов</p>
+          <p>Локально: ${localCount} курсов</p>
+          
+          <div class="sync-options">
+            <button class="sync-option-btn" data-choice="overwrite_local">
+              💾 Заменить локальные данные
+            </button>
+            <button class="sync-option-btn" data-choice="overwrite_remote">
+              ☁️ Заменить данные в репозитории
+            </button>
+            <button class="sync-option-btn" data-choice="merge">
+              🔄 Объединить данные
+            </button>
+            <button class="sync-option-btn" data-choice="cancel">
+              ❌ Отмена
+            </button>
+          </div>
+        </div>
+      `;
+      
+      document.body.appendChild(modal);
+      
+      modal.querySelectorAll('.sync-option-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const choice = btn.dataset.choice;
+          document.body.removeChild(modal);
+          resolve(choice);
+        });
+      });
+    });
+  };
+
+  // Разрешение конфликтов Gist
+  const resolveConflict = (choice) => {
+    if (!conflict) return;
+    
+    if (choice === 'local') {
+      syncWithGithubGist().then(() => {
+        setConflict(null);
+        setSyncStatus('✅ Конфликт разрешен');
+      });
+    } else if (choice === 'server') {
+      setCourses(conflict.serverData);
+      saveToLocalStorage(conflict.serverData);
+      setConflict(null);
+      setSyncStatus('✅ Конфликт разрешен');
+    } else if (choice === 'merge') {
+      const merged = [...conflict.localData];
+      
+      conflict.serverData.forEach(serverCourse => {
+        if (!merged.find(localCourse => localCourse.id === serverCourse.id)) {
+          merged.push(serverCourse);
+        }
+      });
+      
+      setCourses(merged);
+      saveToLocalStorage(merged);
+      syncWithGithubGist().then(() => {
+        setConflict(null);
+        setSyncStatus('✅ Конфликт разрешен');
+      });
+    }
+  };
+
+  // ==================== ОПЕРАЦИИ С КУРСАМИ ====================
   const addCourse = () => {
     const newCourse = {
       id: Date.now(),
@@ -561,18 +1110,7 @@ function App() {
     }
   };
 
-  // Функции для Gist синхронизации (упрощенные)
-  const syncWithGithubGist = async () => {
-    // ... существующий код для Gist синхронизации ...
-    alert('Gist синхронизация в разработке');
-  };
-
-  const loadFromGithubGist = async () => {
-    // ... существующий код для загрузки из Gist ...
-    alert('Загрузка из Gist в разработке');
-  };
-
-  // Экспорт/импорт
+  // ==================== ЭКСПОРТ/ИМПОРТ ====================
   const exportData = () => {
     const data = {
       courses,
@@ -686,11 +1224,11 @@ function App() {
             localChanges={localChanges}
             remoteChanges={remoteChanges}
             onSync={syncWithGithubGist}
+            onRepoSync={gitSyncWithRepo}
             autoSync={autoSync}
             onToggleAutoSync={() => setAutoSync(!autoSync)}
             hasGistAccess={githubPermissions.hasGistAccess}
             hasRepoAccess={githubPermissions.hasRepoAccess}
-            onRepoSync={gitSyncWithRepo}
           />
           
           <button 
@@ -702,6 +1240,40 @@ function App() {
           </button>
         </div>
       </header>
+      
+      {/* Конфликт изменений в Gist */}
+      {conflict && (
+        <div className="conflict-modal">
+          <div className="conflict-content">
+            <h3>⚠️ Обнаружен конфликт изменений в Gist</h3>
+            <p>Изменения были сделаны в нескольких местах:</p>
+            <div className="conflict-info">
+              <div>
+                <strong>В Gist:</strong>
+                <p>{conflict.serverTime.toLocaleString()}</p>
+                <p>Курсов: {conflict.serverData.length}</p>
+              </div>
+              <div>
+                <strong>Локально:</strong>
+                <p>{conflict.localTime.toLocaleString()}</p>
+                <p>Курсов: {conflict.localData.length}</p>
+              </div>
+            </div>
+            
+            <div className="conflict-actions">
+              <button onClick={() => resolveConflict('local')} className="local-btn">
+                💻 Использовать локальные данные
+              </button>
+              <button onClick={() => resolveConflict('server')} className="server-btn">
+                ☁️ Использовать данные из Gist
+              </button>
+              <button onClick={() => resolveConflict('merge')} className="merge-btn">
+                🔄 Объединить
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       
       {/* Модальное окно управления данными */}
       {showDataManagement && (
@@ -744,8 +1316,8 @@ function App() {
           ) : (
             <div className="welcome-screen">
               <div className="welcome-content">
-                <h2>Персональный Stepik с реальным Git 🚀</h2>
-                <p>Создавайте курсы и управляйте ими через GitHub API</p>
+                <h2>Персональный Stepik 📚</h2>
+                <p>Создавайте, организуйте и синхронизируйте учебные материалы</p>
                 
                 <div className="welcome-actions">
                   <button onClick={addCourse} className="primary-action">
@@ -772,7 +1344,6 @@ function App() {
                   )}
                 </div>
                 
-                {/* Компонент GitHub синхронизации */}
                 <GithubSync
                   githubToken={githubToken}
                   setGithubToken={setGithubToken}
@@ -786,7 +1357,7 @@ function App() {
                   onLoad={loadFromGithubGist}
                   onCommit={performRealGitCommit}
                   onPush={performGitPush}
-                  onPull={performGitPull}
+                  onPull={loadDataFromRepository}
                   onAddAndCommit={gitAddAndCommit}
                   onRepoSync={gitSyncWithRepo}
                   isSyncing={isSyncing}
@@ -796,50 +1367,18 @@ function App() {
                   gitHistory={gitHistory}
                   repoCommits={repoCommits}
                   lastCommitSha={lastCommitSha}
+                  repoInfo={repoInfo}
                 />
                 
                 <div className="welcome-tips">
-                  <h3>📋 Как настроить работу с Git:</h3>
-                  <ol>
-                    <li>
-                      <strong>Создайте токен GitHub:</strong><br/>
-                      <a href="https://github.com/settings/tokens/new?scopes=repo&description=Steplik%20Personal" 
-                         target="_blank" 
-                         rel="noopener noreferrer"
-                         className="github-link">
-                        🔗 Создать токен с правами repo
-                      </a>
-                    </li>
-                    <li>
-                      <strong>Создайте репозиторий:</strong><br/>
-                      <a href="https://github.com/new" 
-                         target="_blank" 
-                         rel="noopener noreferrer"
-                         className="github-link">
-                        🔗 Создать новый репозиторий
-                      </a>
-                    </li>
-                    <li>
-                      <strong>Настройте в приложении:</strong><br/>
-                      Введите токен и URL репозитория (например: https://github.com/ваш-логин/steplik-data)
-                    </li>
-                    <li>
-                      <strong>Работайте:</strong><br/>
-                      Создавайте курсы → нажимайте "Коммит" → изменения будут в вашем репозитории
-                    </li>
-                  </ol>
-                  
-                  <div className="github-repo-status">
-                    {repoConfig.owner ? (
-                      <>
-                        <p><strong>Текущий репозиторий:</strong> {repoConfig.owner}/{repoConfig.name}</p>
-                        <p><strong>Последний коммит:</strong> {lastCommitSha ? `${lastCommitSha.substring(0, 8)}...` : 'нет'}</p>
-                        <p><strong>Коммитов в истории:</strong> {repoCommits.length}</p>
-                      </>
-                    ) : (
-                      <p className="no-repo">Репозиторий не настроен</p>
-                    )}
-                  </div>
+                  <h3>💡 Возможности:</h3>
+                  <ul>
+                    <li>✅ Создание курсов с разделами и вкладками</li>
+                    <li>✅ Добавление текста и видео (YouTube, VK)</li>
+                    <li>✅ Синхронизация через GitHub Gist</li>
+                    <li>✅ Коммиты и push/pull в GitHub репозиторий</li>
+                    <li>✅ Экспорт/импорт данных в JSON</li>
+                  </ul>
                 </div>
               </div>
             </div>

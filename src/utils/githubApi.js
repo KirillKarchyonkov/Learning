@@ -29,17 +29,45 @@ export class GitHubApi {
       return response.json();
     }
   
-    // Работа с репозиторием
-    async getRepo(owner, repo) {
-      return this.request(`/repos/${owner}/${repo}`);
+    // Кодировка строки в base64
+    encodeToBase64(str) {
+      try {
+        // Используем TextEncoder для правильной работы с Unicode
+        const encoder = new TextEncoder();
+        const data = encoder.encode(str);
+        const binaryString = Array.from(data).map(byte => String.fromCharCode(byte)).join('');
+        return btoa(binaryString);
+      } catch (error) {
+        // Fallback для старых браузеров
+        return btoa(unescape(encodeURIComponent(str)));
+      }
     }
   
+    // Декодировка из base64
+    decodeFromBase64(base64) {
+      try {
+        // Используем TextDecoder для правильной работы с Unicode
+        const binaryString = atob(base64);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        const decoder = new TextDecoder('utf-8');
+        return decoder.decode(bytes);
+      } catch (error) {
+        // Fallback для старых браузеров
+        return decodeURIComponent(escape(atob(base64)));
+      }
+    }
+  
+    // Улучшенная функция для работы с файлами
     async getFileContent(owner, repo, path, branch = 'main') {
       try {
-        return await this.request(`/repos/${owner}/${repo}/contents/${path}?ref=${branch}`);
+        const response = await this.request(`/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}?ref=${branch}`);
+        return response;
       } catch (error) {
         if (error.message.includes('404')) {
-          return null; // Файл не существует
+          return null;
         }
         throw error;
       }
@@ -48,15 +76,12 @@ export class GitHubApi {
     async createOrUpdateFile(owner, repo, path, content, message, branch = 'main', sha = null) {
       const body = {
         message,
-        content: btoa(unescape(encodeURIComponent(content))),
-        branch
+        content: this.encodeToBase64(content),
+        branch,
+        ...(sha && { sha })
       };
   
-      if (sha) {
-        body.sha = sha;
-      }
-  
-      return this.request(`/repos/${owner}/${repo}/contents/${path}`, {
+      return this.request(`/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}`, {
         method: 'PUT',
         body: JSON.stringify(body)
       });
@@ -66,40 +91,15 @@ export class GitHubApi {
       return this.request(`/repos/${owner}/${repo}/commits?sha=${branch}&per_page=${perPage}`);
     }
   
-    async getBranch(owner, repo, branch = 'main') {
-      return this.request(`/repos/${owner}/${repo}/branches/${branch}`);
+    // Получение дерева репозитория
+    async getTree(owner, repo, branch = 'main') {
+      const branchInfo = await this.request(`/repos/${owner}/${repo}/branches/${branch}`);
+      const tree = await this.request(`/repos/${owner}/${repo}/git/trees/${branchInfo.commit.sha}?recursive=1`);
+      return tree;
     }
   
-    // Создание коммита с несколькими файлами
-    async createCommit(owner, repo, treeData, message, parentSha, branch = 'main') {
-      // 1. Создаем дерево
-      const treeResponse = await this.request(`/repos/${owner}/${repo}/git/trees`, {
-        method: 'POST',
-        body: JSON.stringify({
-          base_tree: parentSha,
-          tree: treeData
-        })
-      });
-  
-      // 2. Создаем коммит
-      const commitResponse = await this.request(`/repos/${owner}/${repo}/git/commits`, {
-        method: 'POST',
-        body: JSON.stringify({
-          message,
-          tree: treeResponse.sha,
-          parents: [parentSha]
-        })
-      });
-  
-      // 3. Обновляем ветку
-      await this.request(`/repos/${owner}/${repo}/git/refs/heads/${branch}`, {
-        method: 'PATCH',
-        body: JSON.stringify({
-          sha: commitResponse.sha,
-          force: false
-        })
-      });
-  
-      return commitResponse;
+    // Получение информации о пользователе
+    async getUser() {
+      return this.request('/user');
     }
   }
