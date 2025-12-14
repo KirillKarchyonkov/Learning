@@ -6,6 +6,7 @@ import DataManagement from './components/DataManagement';
 import SyncManager from './components/SyncManager';
 import './App.css';
 
+
 // Утилиты для работы с GitHub API
 class GitHubApi {
   constructor(token) {
@@ -104,6 +105,7 @@ class GitHubApi {
     return this.request(`/repos/${owner}/${repo}`);
   }
 }
+
 
 function App() {
   // Состояние для данных курсов
@@ -860,9 +862,11 @@ function App() {
       const result = await performGitPull();
       
       if (result.success && result.fileExists && result.data.courses) {
-        if (window.confirm(`Загрузить ${result.data.courses.length} курсов из репозитория? Локальные данные будут заменены.`)) {
-          setCourses(result.data.courses);
-          saveToLocalStorage(result.data.courses);
+        // Используем улучшенное объединение
+        const mergedCourses = mergeCourses(courses, result.data.courses);
+        if (window.confirm(`Загрузить ${result.data.courses.length} курсов из репозитория и объединить с локальными (${courses.length})?`)) {
+          setCourses(mergedCourses);
+          saveToLocalStorage(mergedCourses);
           
           const now = new Date();
           setLastSync(now);
@@ -871,7 +875,7 @@ function App() {
           
           checkGitStatus();
           
-          alert(`✅ Успешно загружено ${result.data.courses.length} курсов!`);
+          alert(`✅ Успешно загружено и объединено. Всего курсов: ${mergedCourses.length}`);
           return true;
         }
       } else if (result.success && !result.fileExists) {
@@ -898,7 +902,210 @@ function App() {
     }
   };
 
-  // Синхронизация с репозиторием
+  // УЛУЧШЕННАЯ ФУНКЦИЯ ОБЪЕДИНЕНИЯ КУРСОВ
+  const mergeCourses = (localCourses, remoteCourses) => {
+    // Создаем карту для быстрого доступа
+    const courseMap = new Map();
+    
+    // Сначала добавляем все локальные курсы
+    localCourses.forEach(course => {
+      courseMap.set(course.id, {
+        ...course,
+        source: 'local',
+        mergeTimestamp: new Date().toISOString()
+      });
+    });
+    
+    // Затем добавляем/обновляем удаленные курсы
+    remoteCourses.forEach(remoteCourse => {
+      const existingCourse = courseMap.get(remoteCourse.id);
+      
+      if (!existingCourse) {
+        // Курс существует только на сервере - добавляем
+        courseMap.set(remoteCourse.id, {
+          ...remoteCourse,
+          source: 'remote',
+          mergeTimestamp: new Date().toISOString()
+        });
+      } else {
+        // Курс существует и локально, и на сервере - объединяем
+        const localCourse = existingCourse;
+        
+        // Определяем, какой курс новее
+        const localTime = new Date(localCourse.updatedAt || localCourse.createdAt || 0);
+        const remoteTime = new Date(remoteCourse.updatedAt || remoteCourse.createdAt || 0);
+        
+        let mergedCourse;
+        
+        if (remoteTime > localTime) {
+          // Удаленный курс новее - используем его как основу
+          mergedCourse = { ...remoteCourse };
+          
+          // Но сохраняем уникальные локальные разделы
+          if (localCourse.sections && localCourse.sections.length > 0) {
+            const sectionMap = new Map();
+            
+            // Добавляем все разделы из удаленного курса
+            if (mergedCourse.sections) {
+              mergedCourse.sections.forEach(section => {
+                sectionMap.set(section.id, section);
+              });
+            }
+            
+            // Добавляем локальные разделы, которых нет в удаленном
+            localCourse.sections.forEach(localSection => {
+              if (!sectionMap.has(localSection.id)) {
+                sectionMap.set(localSection.id, localSection);
+              } else {
+                // Раздел существует в обеих версиях - объединяем вкладки
+                const existingSection = sectionMap.get(localSection.id);
+                const tabMap = new Map();
+                
+                // Добавляем все вкладки из удаленного раздела
+                if (existingSection.tabs) {
+                  existingSection.tabs.forEach(tab => {
+                    tabMap.set(tab.id, tab);
+                  });
+                }
+                
+                // Добавляем локальные вкладки, которых нет в удаленном
+                if (localSection.tabs) {
+                  localSection.tabs.forEach(localTab => {
+                    if (!tabMap.has(localTab.id)) {
+                      tabMap.set(localTab.id, localTab);
+                    } else {
+                      // Вкладка существует в обеих версиях - используем новую
+                      const existingTab = tabMap.get(localTab.id);
+                      const localTabTime = new Date(localTab.lastModified || localTab.createdAt || 0);
+                      const existingTabTime = new Date(existingTab.lastModified || existingTab.createdAt || 0);
+                      
+                      if (localTabTime > existingTabTime) {
+                        tabMap.set(localTab.id, localTab);
+                      }
+                    }
+                  });
+                }
+                
+                // Обновляем раздел с объединенными вкладками
+                existingSection.tabs = Array.from(tabMap.values());
+                sectionMap.set(localSection.id, existingSection);
+              }
+            });
+            
+            mergedCourse.sections = Array.from(sectionMap.values());
+          }
+        } else {
+          // Локальный курс новее или такой же - используем его как основу
+          mergedCourse = { ...localCourse };
+          
+          // Но добавляем уникальные разделы из удаленного
+          if (remoteCourse.sections && remoteCourse.sections.length > 0) {
+            const sectionMap = new Map();
+            
+            // Добавляем все разделы из локального курса
+            if (mergedCourse.sections) {
+              mergedCourse.sections.forEach(section => {
+                sectionMap.set(section.id, section);
+              });
+            }
+            
+            // Добавляем удаленные разделы, которых нет локально
+            remoteCourse.sections.forEach(remoteSection => {
+              if (!sectionMap.has(remoteSection.id)) {
+                sectionMap.set(remoteSection.id, remoteSection);
+              } else {
+                // Раздел существует в обеих версиях - объединяем вкладки
+                const existingSection = sectionMap.get(remoteSection.id);
+                const tabMap = new Map();
+                
+                // Добавляем все вкладки из локального раздела
+                if (existingSection.tabs) {
+                  existingSection.tabs.forEach(tab => {
+                    tabMap.set(tab.id, tab);
+                  });
+                }
+                
+                // Добавляем удаленные вкладки, которых нет локально
+                if (remoteSection.tabs) {
+                  remoteSection.tabs.forEach(remoteTab => {
+                    if (!tabMap.has(remoteTab.id)) {
+                      tabMap.set(remoteTab.id, remoteTab);
+                    } else {
+                      // Вкладка существует в обеих версиях - используем новую
+                      const existingTab = tabMap.get(remoteTab.id);
+                      const remoteTabTime = new Date(remoteTab.lastModified || remoteTab.createdAt || 0);
+                      const existingTabTime = new Date(existingTab.lastModified || existingTab.createdAt || 0);
+                      
+                      if (remoteTabTime > existingTabTime) {
+                        tabMap.set(remoteTab.id, remoteTab);
+                      }
+                    }
+                  });
+                }
+                
+                // Обновляем раздел с объединенными вкладками
+                existingSection.tabs = Array.from(tabMap.values());
+                sectionMap.set(remoteSection.id, existingSection);
+              }
+            });
+            
+            mergedCourse.sections = Array.from(sectionMap.values());
+          }
+        }
+        
+        // Удаляем временные поля
+        delete mergedCourse.source;
+        delete mergedCourse.mergeTimestamp;
+        
+        courseMap.set(remoteCourse.id, mergedCourse);
+      }
+    });
+    
+    // Преобразуем карту обратно в массив
+    const mergedCourses = Array.from(courseMap.values());
+    
+    // Сортируем по дате создания (новые вверху)
+    return mergedCourses.sort((a, b) => {
+      const timeA = new Date(b.createdAt || 0);
+      const timeB = new Date(a.createdAt || 0);
+      return timeB - timeA;
+    });
+  };
+
+  const resolveConflict = (choice) => {
+    if (!conflict) return;
+    
+    setIsSyncing(true);
+    
+    try {
+      if (choice === 'local') {
+        syncWithGithubGist().then(() => {
+          setConflict(null);
+          setSyncStatus('✅ Конфликт разрешен (локальные данные отправлены)');
+        }).finally(() => setIsSyncing(false));
+      } else if (choice === 'server') {
+        setCourses(conflict.serverData);
+        saveToLocalStorage(conflict.serverData);
+        setConflict(null);
+        setSyncStatus('✅ Конфликт разрешен (данные из Gist загружены)');
+        setIsSyncing(false);
+      } else if (choice === 'merge') {
+        const merged = mergeCourses(conflict.localData, conflict.serverData);
+        setCourses(merged);
+        saveToLocalStorage(merged);
+        syncWithGithubGist().then(() => {
+          setConflict(null);
+          setSyncStatus('✅ Конфликт разрешен (данные объединены)');
+        }).finally(() => setIsSyncing(false));
+      }
+    } catch (error) {
+      console.error('Ошибка разрешения конфликта:', error);
+      alert(`❌ Ошибка разрешения конфликта: ${error.message}`);
+      setIsSyncing(false);
+    }
+  };
+
+  // Синхронизация с репозиторием (без конфликтов)
   const gitSyncWithRepo = async () => {
     if (!githubApiRef.current || !repoConfig.owner || !repoConfig.name) {
       alert('Репозиторий не настроен');
@@ -916,44 +1123,37 @@ function App() {
         const remoteCourses = pullResult.data.courses || [];
         const localCourses = courses;
         
-        // Сравниваем данные
-        const localDataStr = JSON.stringify(localCourses);
-        const remoteDataStr = JSON.stringify(remoteCourses);
+        // Всегда используем объединение вместо конфликтов
+        const mergedCourses = mergeCourses(localCourses, remoteCourses);
         
-        if (localDataStr !== remoteDataStr) {
-          // Есть отличия
-          const choice = await showSyncOptions(remoteCourses.length, localCourses.length);
-          
-          if (choice === 'overwrite_local') {
-            setCourses(remoteCourses);
-            saveToLocalStorage(remoteCourses);
-            setSyncStatus('✅ Локальные данные заменены');
-          } else if (choice === 'overwrite_remote') {
-            await performRealGitCommit('Обновление данных с локального устройства');
-            setSyncStatus('✅ Удаленные данные обновлены');
-          } else if (choice === 'merge') {
-            const mergedCourses = mergeCourses(localCourses, remoteCourses);
-            setCourses(mergedCourses);
-            saveToLocalStorage(mergedCourses);
-            await performRealGitCommit('Объединение локальных и удаленных изменений');
-            setSyncStatus('✅ Данные объединены и закоммичены');
-          } else {
-            setSyncStatus('❌ Синхронизация отменена');
-          }
+        // Обновляем локальные данные
+        setCourses(mergedCourses);
+        saveToLocalStorage(mergedCourses);
+        
+        // Если есть изменения после объединения - коммитим
+        const localDataStr = JSON.stringify(localCourses);
+        const mergedDataStr = JSON.stringify(mergedCourses);
+        
+        if (localDataStr !== mergedDataStr) {
+          // Были изменения в результате объединения
+          await performRealGitCommit('🔄 Автоматическое объединение локальных и удаленных изменений');
+          setSyncStatus('✅ Данные объединены и закоммичены');
+        } else if (gitChanges.length > 0) {
+          // Есть локальные изменения
+          await performRealGitCommit();
+          setSyncStatus('✅ Локальные изменения закоммичены');
         } else {
-          // Данные одинаковые
-          if (gitChanges.length > 0) {
-            await performRealGitCommit();
-            setSyncStatus('✅ Локальные изменения закоммичены');
-          } else {
-            setSyncStatus('✅ Данные синхронизированы');
-          }
+          // Данные уже синхронизированы
+          setSyncStatus('✅ Данные синхронизированы');
         }
+        
+        alert(`✅ Синхронизация завершена. Объединено ${mergedCourses.length} курсов.`);
+        
       } else if (pullResult.success && !pullResult.fileExists) {
         // Файла нет в репозитории
         if (courses.length > 0) {
           if (window.confirm('Создать файл в репозитории с текущими данными?')) {
-            await performRealGitCommit('Первоначальный коммит данных курсов');
+            await performRealGitCommit('🎉 Первоначальный коммит данных курсов');
             setSyncStatus('✅ Файл создан в репозитории');
           } else {
             setSyncStatus('❌ Создание файла отменено');
@@ -966,104 +1166,29 @@ function App() {
     } catch (error) {
       console.error('Ошибка синхронизации:', error);
       setSyncStatus(`❌ ${error.message}`);
-      alert(`Ошибка синхронизации: ${error.message}`);
+      
+      // Если конфликт, предлагаем просто объединить
+      if (error.message.includes('Конфликт') || error.message.includes('409')) {
+        if (window.confirm('Обнаружен конфликт. Автоматически объединить данные?')) {
+          try {
+            const pullResult = await performGitPull();
+            if (pullResult.success && pullResult.data.courses) {
+              const mergedCourses = mergeCourses(courses, pullResult.data.courses);
+              setCourses(mergedCourses);
+              saveToLocalStorage(mergedCourses);
+              await performRealGitCommit('🔄 Автоматическое разрешение конфликта');
+              setSyncStatus('✅ Конфликт разрешен, данные объединены');
+            }
+          } catch (mergeError) {
+            console.error('Ошибка объединения:', mergeError);
+            alert(`❌ Ошибка объединения: ${mergeError.message}`);
+          }
+        }
+      } else {
+        alert(`❌ Ошибка синхронизации: ${error.message}`);
+      }
     } finally {
       setIsSyncing(false);
-    }
-  };
-
-  // Объединение курсов
-  const mergeCourses = (localCourses, remoteCourses) => {
-    const merged = [...localCourses];
-    
-    remoteCourses.forEach(remoteCourse => {
-      const existingIndex = merged.findIndex(c => c.id === remoteCourse.id);
-      
-      if (existingIndex === -1) {
-        merged.push(remoteCourse);
-      } else {
-        const localCourse = merged[existingIndex];
-        const localTime = new Date(localCourse.updatedAt || localCourse.createdAt || 0);
-        const remoteTime = new Date(remoteCourse.updatedAt || remoteCourse.createdAt || 0);
-        
-        if (remoteTime > localTime) {
-          merged[existingIndex] = remoteCourse;
-        }
-      }
-    });
-    
-    return merged;
-  };
-
-  // Показать опции синхронизации
-  const showSyncOptions = (remoteCount, localCount) => {
-    return new Promise((resolve) => {
-      const modal = document.createElement('div');
-      modal.className = 'sync-options-modal';
-      modal.innerHTML = `
-        <div class="sync-modal-content">
-          <h3>🔄 Обнаружены различия в данных</h3>
-          <p>В репозитории: ${remoteCount} курсов</p>
-          <p>Локально: ${localCount} курсов</p>
-          
-          <div class="sync-options">
-            <button class="sync-option-btn" data-choice="overwrite_local">
-              💾 Заменить локальные данные
-            </button>
-            <button class="sync-option-btn" data-choice="overwrite_remote">
-              ☁️ Заменить данные в репозитории
-            </button>
-            <button class="sync-option-btn" data-choice="merge">
-              🔄 Объединить данные
-            </button>
-            <button class="sync-option-btn" data-choice="cancel">
-              ❌ Отмена
-            </button>
-          </div>
-        </div>
-      `;
-      
-      document.body.appendChild(modal);
-      
-      modal.querySelectorAll('.sync-option-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const choice = btn.dataset.choice;
-          document.body.removeChild(modal);
-          resolve(choice);
-        });
-      });
-    });
-  };
-
-  // Разрешение конфликтов Gist
-  const resolveConflict = (choice) => {
-    if (!conflict) return;
-    
-    if (choice === 'local') {
-      syncWithGithubGist().then(() => {
-        setConflict(null);
-        setSyncStatus('✅ Конфликт разрешен');
-      });
-    } else if (choice === 'server') {
-      setCourses(conflict.serverData);
-      saveToLocalStorage(conflict.serverData);
-      setConflict(null);
-      setSyncStatus('✅ Конфликт разрешен');
-    } else if (choice === 'merge') {
-      const merged = [...conflict.localData];
-      
-      conflict.serverData.forEach(serverCourse => {
-        if (!merged.find(localCourse => localCourse.id === serverCourse.id)) {
-          merged.push(serverCourse);
-        }
-      });
-      
-      setCourses(merged);
-      saveToLocalStorage(merged);
-      syncWithGithubGist().then(() => {
-        setConflict(null);
-        setSyncStatus('✅ Конфликт разрешен');
-      });
     }
   };
 

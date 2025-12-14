@@ -1,19 +1,33 @@
 import React, { useState, useEffect, useRef } from 'react';
 import VideoEmbed from './VideoEmbed';
 
-const ContentEditor = ({ tab, onUpdateTab }) => {
+const ContentEditor = ({ tab, onUpdateTab, sectionId }) => {
+  // Используем комбинированный ключ: sectionId + tab.id для сохранения состояния редактирования
   const [content, setContent] = useState(tab.content || '');
   const [videoUrl, setVideoUrl] = useState(tab.videoUrl || '');
-  const [isEditing, setIsEditing] = useState(true);
+  const [isEditing, setIsEditing] = useState(false); // По умолчанию режим просмотра
   const [autoSaveTimer, setAutoSaveTimer] = useState(null);
   const [lastSaved, setLastSaved] = useState(null);
   const hasUnsavedChanges = useRef(false);
 
+  // Состояние сохраняется в localStorage по ключу sectionId + tab.id
+  const editingStateKey = `editing-${sectionId}-${tab.id}`;
+
   useEffect(() => {
+    // Восстанавливаем состояние редактирования из localStorage
+    const savedEditingState = localStorage.getItem(editingStateKey);
+    const shouldBeEditing = savedEditingState === 'true';
+    
+    setIsEditing(shouldBeEditing);
     setContent(tab.content || '');
     setVideoUrl(tab.videoUrl || '');
     hasUnsavedChanges.current = false;
-  }, [tab.id]);
+  }, [tab.id, sectionId]); // Зависимость от tab.id И sectionId
+
+  // Сохраняем состояние редактирования в localStorage при изменении
+  useEffect(() => {
+    localStorage.setItem(editingStateKey, isEditing.toString());
+  }, [isEditing, editingStateKey]);
 
   // Автосохранение при бездействии
   useEffect(() => {
@@ -21,7 +35,7 @@ const ContentEditor = ({ tab, onUpdateTab }) => {
       clearTimeout(autoSaveTimer);
     }
     
-    if (hasUnsavedChanges.current) {
+    if (hasUnsavedChanges.current && isEditing) {
       const timer = setTimeout(() => {
         handleAutoSave();
       }, 2000); // Сохранять через 2 секунды бездействия
@@ -34,17 +48,19 @@ const ContentEditor = ({ tab, onUpdateTab }) => {
         clearTimeout(autoSaveTimer);
       }
     };
-  }, [content, videoUrl]);
+  }, [content, videoUrl, isEditing]); // Добавили isEditing в зависимости
 
   const handleAutoSave = () => {
-    onUpdateTab({
-      ...tab,
-      content,
-      videoUrl,
-      lastModified: new Date().toISOString()
-    });
-    setLastSaved(new Date());
-    hasUnsavedChanges.current = false;
+    if (hasUnsavedChanges.current) {
+      onUpdateTab({
+        ...tab,
+        content,
+        videoUrl,
+        lastModified: new Date().toISOString()
+      });
+      setLastSaved(new Date());
+      hasUnsavedChanges.current = false;
+    }
   };
 
   const handleContentChange = (newContent) => {
@@ -60,6 +76,8 @@ const ContentEditor = ({ tab, onUpdateTab }) => {
   const handleSave = () => {
     handleAutoSave();
     setIsEditing(false);
+    // Удаляем состояние редактирования при сохранении
+    localStorage.removeItem(editingStateKey);
   };
 
   const extractVideoId = (url) => {
@@ -82,6 +100,16 @@ const ContentEditor = ({ tab, onUpdateTab }) => {
     }
   };
 
+  // Очистка состояния редактирования при размонтировании компонента (необязательно)
+  useEffect(() => {
+    return () => {
+      // Автосохранение перед уходом
+      if (hasUnsavedChanges.current) {
+        handleAutoSave();
+      }
+    };
+  }, []);
+
   return (
     <div className="content-editor">
       <div className="content-editor-header">
@@ -98,7 +126,13 @@ const ContentEditor = ({ tab, onUpdateTab }) => {
             <span className="unsaved-changes">Есть несохраненные изменения</span>
           )}
           <button 
-            onClick={() => setIsEditing(!isEditing)}
+            onClick={() => {
+              setIsEditing(!isEditing);
+              // При выходе из режима редактирования очищаем состояние
+              if (isEditing) {
+                localStorage.removeItem(editingStateKey);
+              }
+            }}
             className="toggle-edit-btn"
           >
             {isEditing ? '👁️ Просмотр' : '✏️ Редактировать'}

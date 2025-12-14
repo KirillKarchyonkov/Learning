@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 
+
 const SectionEditor = ({ section, onUpdateSection, selectedTabId, onSelectTab }) => {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [sectionTitle, setSectionTitle] = useState(section.title);
+
 
   const addTab = () => {
     const newTab = {
@@ -20,12 +22,14 @@ const SectionEditor = ({ section, onUpdateSection, selectedTabId, onSelectTab })
     onSelectTab(newTab.id);
   };
 
+
   const updateTab = (tabId, updatedTab) => {
     const updatedTabs = section.tabs.map(tab =>
       tab.id === tabId ? updatedTab : tab
     );
     onUpdateSection({ ...section, tabs: updatedTabs });
   };
+
 
   const deleteTab = (tabId) => {
     const updatedTabs = section.tabs.filter(t => t.id !== tabId);
@@ -35,10 +39,12 @@ const SectionEditor = ({ section, onUpdateSection, selectedTabId, onSelectTab })
     }
   };
 
+
   const handleSaveTitle = () => {
     onUpdateSection({ ...section, title: sectionTitle });
     setIsEditingTitle(false);
   };
+
 
   return (
     <div className="section-editor">
@@ -66,6 +72,7 @@ const SectionEditor = ({ section, onUpdateSection, selectedTabId, onSelectTab })
           + Добавить вкладку
         </button>
       </div>
+
 
       <div className="tabs-editor">
         <div className="tabs-list-editor">
@@ -121,5 +128,6 @@ const SectionEditor = ({ section, onUpdateSection, selectedTabId, onSelectTab })
     </div>
   );
 };
+
 
 export default SectionEditor;

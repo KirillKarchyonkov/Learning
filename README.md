@@ -6,7 +6,7 @@
 
 1. **Локальная установка:**
 ```bash
-git clone https://github.com/YOUR_USERNAME/steplik-personal.git
-cd steplik-personal
+git clone https://github.com/YOUR_USERNAME/Learning.git
+cd Learning
 npm install
 npm start

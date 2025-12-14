@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import SectionEditor from './SectionEditor';
 import ContentEditor from './ContentEditor';
 
+
 const CourseViewer = ({ 
   course, 
   onUpdateCourse,
@@ -15,8 +16,10 @@ const CourseViewer = ({
   const [title, setTitle] = useState(course.title);
   const [description, setDescription] = useState(course.description);
 
+
   const selectedSection = course.sections?.find(s => s.id === selectedSectionId);
   const selectedTab = selectedSection?.tabs?.find(t => t.id === selectedTabId);
+
 
   const handleSaveCourse = () => {
     const updatedCourse = {
@@ -37,6 +40,7 @@ const CourseViewer = ({
       }, 500);
     }
   };
+
 
   const addSection = () => {
     const newSection = {
@@ -63,6 +67,7 @@ const CourseViewer = ({
     }
   };
 
+
   const updateSection = (sectionId, updatedSection) => {
     const updatedSections = course.sections.map(section =>
       section.id === sectionId ? {
@@ -77,6 +82,7 @@ const CourseViewer = ({
     };
     onUpdateCourse(course.id, updatedCourse);
   };
+
 
   const deleteSection = (sectionId) => {
     const sectionToDelete = course.sections.find(s => s.id === sectionId);
@@ -104,6 +110,7 @@ const CourseViewer = ({
       }
     }
   };
+
 
   return (
     <div className="course-viewer">
@@ -164,6 +171,7 @@ const CourseViewer = ({
         )}
       </div>
 
+
       <div className="course-content">
         <div className="sections-sidebar">
           <div className="sections-header">
@@ -220,6 +228,7 @@ const CourseViewer = ({
           </div>
         </div>
 
+
         <div className="content-area">
           {selectedSection ? (
             <div className="section-content">
@@ -234,13 +243,13 @@ const CourseViewer = ({
               {selectedTab && (
                 <ContentEditor
                   tab={selectedTab}
+                  sectionId={selectedSection.id} // ← ВОТ ЭТО ВАЖНОЕ ИЗМЕНЕНИЕ
                   onUpdateTab={(updatedTab) => {
                     const updatedTabs = selectedSection.tabs.map(t =>
                       t.id === selectedTab.id ? updatedTab : t
                     );
                     updateSection(selectedSection.id, { ...selectedSection, tabs: updatedTabs });
                   }}
-                  onGitCommit={onGitCommit}
                 />
               )}
             </div>
@@ -257,5 +266,6 @@ const CourseViewer = ({
     </div>
   );
 };
+
 
 export default CourseViewer;
