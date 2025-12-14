@@ -144,11 +144,27 @@
             }
           ],
           "updatedAt": "2025-12-14T08:55:53.807Z"
+        },
+        {
+          "id": 1765706155686,
+          "title": "NodeJS, Express, MongoDB",
+          "tabs": [
+            {
+              "id": 1765706167806,
+              "title": "NodeJS, Express, MongoDB - Сайт с нуля",
+              "content": "",
+              "videoUrl": "https://vkvideo.ru/video_ext.php?oid=-182420474&id=456239268&hash=4447db91857c3232&hd=3",
+              "type": "mixed",
+              "lastModified": "2025-12-14T09:57:12.448Z"
+            }
+          ],
+          "createdAt": "2025-12-14T09:55:55.686Z",
+          "updatedAt": "2025-12-14T09:57:56.683Z"
         }
       ],
       "createdAt": "2025-12-13T12:26:08.124Z",
-      "updatedAt": "2025-12-14T08:57:32.847Z",
-      "version": 6
+      "updatedAt": "2025-12-14T09:57:56.683Z",
+      "version": 15
     },
     {
       "id": 1765631226079,
@@ -211,11 +227,26 @@
           ],
           "createdAt": "2025-12-14T09:01:46.575Z",
           "updatedAt": "2025-12-14T09:03:41.697Z"
+        },
+        {
+          "id": 1765706120547,
+          "title": "Новый раздел 3",
+          "tabs": [
+            {
+              "id": 1765706129227,
+              "title": "Новая вкладка 1",
+              "content": "",
+              "videoUrl": "",
+              "type": "text"
+            }
+          ],
+          "createdAt": "2025-12-14T09:55:20.547Z",
+          "updatedAt": "2025-12-14T09:55:29.227Z"
         }
       ],
       "createdAt": "2025-12-13T14:42:36.978Z",
-      "updatedAt": "2025-12-14T09:03:41.697Z",
-      "version": 28
+      "updatedAt": "2025-12-14T09:55:29.227Z",
+      "version": 30
     },
     {
       "id": 1765638631451,
@@ -293,10 +324,10 @@
     }
   ],
   "metadata": {
-    "lastModified": "2025-12-14T09:55:22.269Z",
+    "lastModified": "2025-12-14T10:00:29.002Z",
     "totalCourses": 10,
-    "totalSections": 7,
-    "commitMessage": "Обновлен курс: \"Экосистема Node JS\"",
+    "totalSections": 9,
+    "commitMessage": "Обновлен курс: \"Экосистема  React\"",
     "appVersion": "1.0"
   }
 }
